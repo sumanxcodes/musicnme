@@ -55,8 +55,8 @@ export const formatDuration = (duration: string): string => {
 export const fetchVideoMetadata = async (videoId: string): Promise<YouTubeVideoDetails | null> => {
   try {
     const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-    if (!apiKey) {
-      console.error('YouTube API key not found');
+    if (!apiKey || apiKey === 'your_youtube_data_api_key') {
+      console.error('YouTube API key not found or not configured properly');
       return null;
     }
     
@@ -68,6 +68,8 @@ export const fetchVideoMetadata = async (videoId: string): Promise<YouTubeVideoD
     );
     
     if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('YouTube API error:', response.status, errorData);
       throw new Error(`YouTube API error: ${response.status}`);
     }
     
@@ -78,13 +80,20 @@ export const fetchVideoMetadata = async (videoId: string): Promise<YouTubeVideoD
     }
     
     const video = data.items[0];
+    const snippet = video.snippet || {};
+    const contentDetails = video.contentDetails || {};
+    
     return {
       id: video.id,
-      title: video.title,
-      channelTitle: video.channelTitle,
-      thumbnails: video.thumbnails,
-      duration: video.duration,
-      description: video.description
+      title: snippet.title || 'Untitled Video',
+      channelTitle: snippet.channelTitle || 'Unknown Channel',
+      thumbnails: snippet.thumbnails || {
+        high: { url: '' },
+        medium: { url: '' },
+        default: { url: '' }
+      },
+      duration: formatDuration(contentDetails.duration || 'PT0S'),
+      description: snippet.description || ''
     };
   } catch (error) {
     console.error('Error fetching video metadata:', error);

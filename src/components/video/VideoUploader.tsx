@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { youtubeUrlSchema } from '@/lib/validation';
+import { z } from 'zod';
 import { fetchVideoMetadataByUrl, extractVideoId } from '@/lib/youtube';
 import { addVideo, getVideo } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,10 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ onVideoAdded, onClose }) 
   const [previewVideo, setPreviewVideo] = useState<any>(null);
   const [processingStep, setProcessingStep] = useState('');
   
+  const urlFormSchema = z.object({
+    url: youtubeUrlSchema,
+  });
+
   const {
     register,
     handleSubmit,
@@ -31,7 +36,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ onVideoAdded, onClose }) 
     reset,
     setError,
   } = useForm<UrlFormData>({
-    resolver: zodResolver(youtubeUrlSchema.object({ url: youtubeUrlSchema })),
+    resolver: zodResolver(urlFormSchema),
   });
 
   const onSubmit = async (data: UrlFormData) => {
@@ -65,7 +70,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ onVideoAdded, onClose }) 
       setProcessingStep('Fetching video information...');
       const videoData = await fetchVideoMetadataByUrl(data.url);
       if (!videoData) {
-        setError('url', { message: 'Video not found or is private' });
+        setError('url', { message: 'Video not found, is private, or API error. Please check the URL and try again.' });
         setIsProcessing(false);
         setProcessingStep('');
         return;
@@ -95,7 +100,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ onVideoAdded, onClose }) 
         videoId: previewVideo.id,
         title: previewVideo.title,
         duration: previewVideo.duration,
-        thumbnail: previewVideo.thumbnails.high.url,
+        thumbnail: previewVideo.thumbnails?.high?.url || previewVideo.thumbnails?.medium?.url || previewVideo.thumbnails?.default?.url || '',
         tags: [], // Will be added later through tag management
         channelName: previewVideo.channelTitle,
         createdBy: user.uid,
@@ -203,7 +208,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ onVideoAdded, onClose }) 
             <div className="flex space-x-4">
               <div className="flex-shrink-0">
                 <img
-                  src={previewVideo.thumbnails.medium.url}
+                  src={previewVideo.thumbnails?.medium?.url || previewVideo.thumbnails?.high?.url || previewVideo.thumbnails?.default?.url}
                   alt={previewVideo.title}
                   className="w-32 h-24 object-cover rounded"
                 />

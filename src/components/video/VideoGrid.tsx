@@ -172,11 +172,15 @@ const VideoGrid: React.FC<VideoGridProps> = ({
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredVideos.map((video) => (
-              <VideoCard
-                key={video.videoId}
-                video={video}
-                onSelect={onVideoSelect}
+            {filteredVideos
+              .filter((video, index, self) => 
+                index === self.findIndex(v => v.videoId === video.videoId)
+              )
+              .map((video, index) => (
+                <VideoCard
+                  key={`${video.videoId}-${index}`}
+                  video={video}
+                  onSelect={onVideoSelect}
                 onEdit={onVideoEdit}
                 onDelete={onVideoDelete}
                 onAddToPlaylist={onAddToPlaylist}
