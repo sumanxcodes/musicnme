@@ -22,19 +22,14 @@ const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-16">
           {/* Logo and Title */}
-          <div className="flex items-center">
+          {/* <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                </svg>
-              </div>
               <div className="ml-3">
                 <h1 className="text-xl font-bold text-gray-900">Music and Me</h1>
                 <p className="text-xs text-gray-500">Boomwhacker Playlist Tool</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Navigation and User Profile */}
           <div className="flex items-center justify-between flex-1 ml-8">

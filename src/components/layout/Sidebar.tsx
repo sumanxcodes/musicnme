@@ -89,12 +89,22 @@ const Sidebar: React.FC = () => {
       {/* Sidebar Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <h2 className="text-sm font-semibold text-gray-900">Navigation</h2>
-          )}
+          {!isCollapsed ? (
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h2 className="text-sm font-semibold text-gray-900">Music and Me</h2>
+                <p className="text-xs text-gray-500">Playlist Tool</p>
+              </div>
+            </div>
+          ) : null}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="p-2 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,7 +128,7 @@ const Sidebar: React.FC = () => {
               } ${
                 item.current
                   ? isCollapsed 
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-blue-100 text-blue-700 px-0'
                     : 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
               }`}
