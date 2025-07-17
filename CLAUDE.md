@@ -99,14 +99,100 @@ GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 - Accessibility testing with Chrome Lighthouse and axe-core
 - Manual screen reader testing (NVDA/VoiceOver)
 
-## Development Protocol
+## Git Workflow
 
-After completing each feature:
-1. Push code with clear commit messages
-2. Update progress tracking
-3. Document environment variable changes
-4. Validate UI accessibility
-5. Log schema/logic changes
+### Feature Branch Strategy
+
+**IMPORTANT**: From Phase 2 onwards, all new features must be developed in feature branches:
+
+```bash
+# Create and switch to feature branch
+git checkout -b feature/playlist-crud
+# or
+git checkout -b feature/video-management
+# or  
+git checkout -b feature/tagging-system
+
+# Work on feature...
+git add .
+git commit -m "Add playlist creation modal"
+
+# Push feature branch
+git push origin feature/playlist-crud
+
+# Create pull request for review
+# Merge to main after review
+```
+
+### Branch Naming Convention
+- **Features**: `feature/brief-description`
+- **Bug fixes**: `fix/brief-description`
+- **Improvements**: `improve/brief-description`
+- **Documentation**: `docs/brief-description`
+
+Examples:
+- `feature/playlist-crud`
+- `feature/youtube-integration`
+- `feature/drag-drop-reorder`
+- `fix/sidebar-collapse-styling`
+- `improve/accessibility-contrast`
+
+### Development Protocol
+
+For each feature development:
+
+1. **Create Feature Branch**:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Develop Feature**:
+   - Write code with proper TypeScript types
+   - Follow accessibility guidelines
+   - Add loading states and error handling
+   - Test responsiveness
+
+3. **Commit Changes**:
+   ```bash
+   git add .
+   git commit -m "Descriptive commit message
+
+   - Feature details
+   - What was implemented
+   - Any breaking changes
+   
+   🤖 Generated with [Claude Code](https://claude.ai/code)
+   Co-Authored-By: Claude <noreply@anthropic.com>"
+   ```
+
+4. **Push Feature Branch**:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+5. **Create Pull Request**:
+   - Use GitHub web interface or `gh pr create`
+   - Add description of changes
+   - Link to related issues
+
+6. **After Review & Merge**:
+   - Delete feature branch
+   - Update local main branch
+   - Update progress tracking
+
+### Commit Message Standards
+
+- Use descriptive, imperative mood ("Add playlist creation" not "Added playlist creation")
+- Include bullet points for multiple changes
+- Always include the Claude Code signature
+- Reference issue numbers when applicable
+
+### Branch Protection
+
+- `main` branch should be protected
+- Require pull request reviews
+- Require status checks to pass
+- No direct pushes to main (except hotfixes)
 
 ## Role-Based Access
 
