@@ -52,8 +52,8 @@ const Sidebar: React.FC = () => {
       name: 'Session Mode',
       href: '/session',
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.5a2.5 2.5 0 010 5H9m-4.5-5h.01m4.49 0H15m-6 0a2.5 2.5 0 00-2.5 2.5M15 10h.01M15 10a2.5 2.5 0 012.5 2.5m-7.5 5h.01m7.49 0h.01" />
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
         </svg>
       ),
       current: pathname === '/session',
@@ -111,9 +111,15 @@ const Sidebar: React.FC = () => {
             <Link
               key={item.name}
               href={item.href}
-              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`group flex items-center text-sm font-medium rounded-md transition-colors ${
+                isCollapsed 
+                  ? 'mx-2 px-2 py-2 justify-center' 
+                  : 'px-3 py-2'
+              } ${
                 item.current
-                  ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
+                  ? isCollapsed 
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
               }`}
               title={isCollapsed ? item.name : undefined}
@@ -125,7 +131,7 @@ const Sidebar: React.FC = () => {
                 <>
                   <span className="ml-3">{item.name}</span>
                   {item.badge && (
-                    <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <span className="ml-auto inline-flex items-center px- py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {item.badge}
                     </span>
                   )}
@@ -147,9 +153,15 @@ const Sidebar: React.FC = () => {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                className={`group flex items-center text-sm font-medium rounded-md transition-colors ${
+                  isCollapsed 
+                    ? 'mx-2 px-2 py-2 justify-center' 
+                    : 'px-3 py-2'
+                } ${
                   item.current
-                    ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
+                    ? isCollapsed 
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}
                 title={isCollapsed ? item.name : undefined}
