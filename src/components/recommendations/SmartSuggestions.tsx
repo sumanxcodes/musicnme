@@ -53,10 +53,11 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     try {
       const recs = await getRecommendationsForUser(user.uid, context, maxSuggestions * 2);
       
-      // Filter by type if specified
+      // Filter out template recommendations and filter by type if specified
+      const nonTemplateRecs = recs.filter(rec => rec.itemType !== 'template');
       const filteredRecs = type === 'all' 
-        ? recs 
-        : recs.filter(rec => rec.itemType === type);
+        ? nonTemplateRecs 
+        : nonTemplateRecs.filter(rec => rec.itemType === type);
 
       // Load data for each recommendation
       const recsWithData: SuggestionItem[] = await Promise.all(
@@ -69,9 +70,6 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
                 break;
               case 'playlist':
                 data = await getPlaylist(rec.itemId);
-                break;
-              case 'template':
-                data = await getTemplate(rec.itemId);
                 break;
             }
             return { ...rec, data, loading: false };

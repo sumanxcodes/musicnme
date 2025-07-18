@@ -48,9 +48,12 @@ const RecommendationCarousel: React.FC<RecommendationCarouselProps> = ({
     try {
       const recs = await getRecommendationsForUser(user.uid, context, maxRecommendations);
       
+      // Filter out template recommendations 
+      const filteredRecs = recs.filter(rec => rec.itemType !== 'template');
+      
       // Load data for each recommendation
       const recsWithData: RecommendationItem[] = await Promise.all(
-        recs.map(async (rec): Promise<RecommendationItem> => {
+        filteredRecs.map(async (rec): Promise<RecommendationItem> => {
           try {
             let data: Video | Playlist | TemplatePlaylist | null = null;
             switch (rec.itemType) {
@@ -59,9 +62,6 @@ const RecommendationCarousel: React.FC<RecommendationCarouselProps> = ({
                 break;
               case 'playlist':
                 data = await getPlaylist(rec.itemId);
-                break;
-              case 'template':
-                data = await getTemplate(rec.itemId);
                 break;
             }
             return { ...rec, data, loading: false };
