@@ -14,6 +14,7 @@ interface PlaylistGridProps {
   onPlaylistDuplicate?: (playlist: Playlist) => void;
   onPlaylistPlay?: (playlist: Playlist) => void;
   onPlaylistView?: (playlist: Playlist) => void;
+  onPlaylistShare?: (playlist: Playlist) => void;
   showActions?: boolean;
   emptyMessage?: string;
   emptyIcon?: React.ReactNode;
@@ -27,6 +28,7 @@ const PlaylistGrid: React.FC<PlaylistGridProps> = ({
   onPlaylistDuplicate,
   onPlaylistPlay,
   onPlaylistView,
+  onPlaylistShare,
   showActions = true,
   emptyMessage = "No playlists found",
   emptyIcon,
@@ -192,6 +194,7 @@ const PlaylistGrid: React.FC<PlaylistGridProps> = ({
               onDuplicate={onPlaylistDuplicate}
               onPlay={onPlaylistPlay}
               onView={onPlaylistView}
+              onShare={onPlaylistShare}
               showActions={showActions}
             />
           ))}

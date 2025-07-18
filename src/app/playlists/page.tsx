@@ -8,6 +8,7 @@ import PlaylistGrid from '@/components/playlist/PlaylistGrid';
 import CreatePlaylistModal from '@/components/modals/CreatePlaylistModal';
 import EditPlaylistModal from '@/components/modals/EditPlaylistModal';
 import DeleteConfirmationModal from '@/components/modals/DeleteConfirmationModal';
+import SharePlaylistModal from '@/components/modals/SharePlaylistModal';
 
 const PlaylistsPage: React.FC = () => {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ const PlaylistsPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
 
   useEffect(() => {
@@ -86,10 +88,16 @@ const PlaylistsPage: React.FC = () => {
     window.location.href = `/playlists/${playlist.id}`;
   };
 
+  const handlePlaylistShare = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
+    setIsShareModalOpen(true);
+  };
+
   const handleCloseModals = () => {
     setIsCreateModalOpen(false);
     setIsEditModalOpen(false);
     setIsDeleteModalOpen(false);
+    setIsShareModalOpen(false);
     setSelectedPlaylist(null);
   };
 
@@ -175,6 +183,7 @@ const PlaylistsPage: React.FC = () => {
         onPlaylistDuplicate={handlePlaylistDuplicate}
         onPlaylistPlay={handlePlaylistPlay}
         onPlaylistView={handlePlaylistView}
+        onPlaylistShare={handlePlaylistShare}
         showActions={true}
         emptyMessage="No playlists created yet"
         emptyIcon={
@@ -204,6 +213,13 @@ const PlaylistsPage: React.FC = () => {
         onClose={handleCloseModals}
         onSuccess={handleDeleteSuccess}
       />
+      
+      {selectedPlaylist && isShareModalOpen && (
+        <SharePlaylistModal
+          playlist={selectedPlaylist}
+          onClose={handleCloseModals}
+        />
+      )}
     </div>
   );
 };
