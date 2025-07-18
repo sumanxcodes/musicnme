@@ -25,8 +25,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ children }) => {
 
   const handleRestorePictureInPicture = () => {
     dispatch({ type: 'SET_PICTURE_IN_PICTURE', payload: false });
-    // Navigate to session page or restore full player
-    window.location.href = '/session';
+    // Navigate to session page if not already there
+    if (!window.location.pathname.includes('/session')) {
+      window.location.href = '/session';
+    }
   };
 
   if (loading) {

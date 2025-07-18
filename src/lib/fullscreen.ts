@@ -111,16 +111,19 @@ export class CustomFullscreenManager {
 
   private removeFullscreenStyles(element: HTMLElement) {
     // Restore original styles
-    element.style.position = this.originalStyles.get('position') || 'static';
-    element.style.top = this.originalStyles.get('top') || 'auto';
-    element.style.left = this.originalStyles.get('left') || 'auto';
-    element.style.width = this.originalStyles.get('width') || 'auto';
-    element.style.height = this.originalStyles.get('height') || 'auto';
-    element.style.zIndex = this.originalStyles.get('zIndex') || 'auto';
-    element.style.backgroundColor = this.originalStyles.get('backgroundColor') || 'transparent';
+    element.style.position = this.originalStyles.get('position') || '';
+    element.style.top = this.originalStyles.get('top') || '';
+    element.style.left = this.originalStyles.get('left') || '';
+    element.style.width = this.originalStyles.get('width') || '';
+    element.style.height = this.originalStyles.get('height') || '';
+    element.style.zIndex = this.originalStyles.get('zIndex') || '';
+    element.style.backgroundColor = this.originalStyles.get('backgroundColor') || '';
 
     // Restore body scroll
     document.body.style.overflow = '';
+    
+    // Force a reflow to ensure styles are applied
+    element.offsetHeight;
   }
 
   enterFullscreen(element: HTMLElement, options: FullscreenOptions = {}) {
@@ -174,6 +177,9 @@ export class CustomFullscreenManager {
 
     // Remove fullscreen class from body
     document.body.classList.remove('custom-fullscreen');
+
+    // Force a reflow to ensure styles are applied
+    this.fullscreenElement.offsetHeight;
 
     // Reset state
     this.isFullscreen = false;

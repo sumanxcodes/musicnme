@@ -41,12 +41,25 @@ const PictureInPictureModal: React.FC<PictureInPictureModalProps> = ({
   const modalRef = useRef<HTMLDivElement>(null);
   const dragHandleRef = useRef<HTMLDivElement>(null);
 
+  // Store PiP player ref separately
+  const pipPlayerRef = useRef<any>(null);
+  
   // YouTube player event handlers
   const onPlayerReady: YouTubeProps['onReady'] = (event) => {
-    playerRef.current = event.target;
+    pipPlayerRef.current = event.target;
     event.target.setVolume(state.volume * 100);
     if (state.playbackSpeed !== 1) {
       event.target.setPlaybackRate(state.playbackSpeed);
+    }
+    
+    // Sync with current time when PiP starts
+    if (state.currentTime > 0) {
+      event.target.seekTo(state.currentTime);
+    }
+    
+    // Continue playing if it was playing before
+    if (state.isPlaying) {
+      event.target.playVideo();
     }
   };
 
@@ -66,14 +79,14 @@ const PictureInPictureModal: React.FC<PictureInPictureModalProps> = ({
     nextVideo();
   };
 
-  // Update time and duration
+  // Update time and duration from PiP player
   useEffect(() => {
-    if (!playerRef.current || !state.isPlaying) return;
+    if (!pipPlayerRef.current || !state.isPlaying) return;
 
     const updateTime = () => {
-      if (playerRef.current) {
-        const currentTime = playerRef.current.getCurrentTime();
-        const duration = playerRef.current.getDuration();
+      if (pipPlayerRef.current) {
+        const currentTime = pipPlayerRef.current.getCurrentTime();
+        const duration = pipPlayerRef.current.getDuration();
         
         dispatch({ type: 'SET_CURRENT_TIME', payload: currentTime });
         if (duration !== state.duration) {
@@ -218,7 +231,14 @@ const PictureInPictureModal: React.FC<PictureInPictureModalProps> = ({
                   </svg>
                 </button>
                 <button
-                  onClick={onRestore}
+                  onClick={() => {
+                    // Update current time before restoring
+                    if (playerRef.current) {
+                      const currentTime = playerRef.current.getCurrentTime();
+                      dispatch({ type: 'SET_CURRENT_TIME', payload: currentTime });
+                    }
+                    onRestore();
+                  }}
                   className="p-1 text-white hover:bg-white/20 rounded transition-colors"
                   aria-label="Restore"
                 >
@@ -241,7 +261,16 @@ const PictureInPictureModal: React.FC<PictureInPictureModalProps> = ({
             {/* Center Play/Pause Button */}
             <div className="absolute inset-0 flex items-center justify-center">
               <button
-                onClick={togglePlayPause}
+                onClick={() => {
+                  if (pipPlayerRef.current) {
+                    const playerState = pipPlayerRef.current.getPlayerState();
+                    if (playerState === 1) {
+                      pipPlayerRef.current.pauseVideo();
+                    } else {
+                      pipPlayerRef.current.playVideo();
+                    }
+                  }
+                }}
                 className="p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
                 aria-label={state.isPlaying ? 'Pause' : 'Play'}
               >

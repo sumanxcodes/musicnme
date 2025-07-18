@@ -192,7 +192,13 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     if (state.playbackSpeed !== 1) {
       event.target.setPlaybackRate(state.playbackSpeed);
     }
-    if (autoplay) {
+    
+    // Sync with current time when returning from PiP or starting
+    if (state.currentTime > 0) {
+      event.target.seekTo(state.currentTime);
+    }
+    
+    if (autoplay || state.isPlaying) {
       event.target.playVideo();
     }
     if (onReady) {
@@ -257,7 +263,25 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       });
     }
     toggleFullscreen();
+    
+    // Force a re-render of the YouTube player after fullscreen change
+    setTimeout(() => {
+      if (playerRef.current) {
+        // Trigger a resize event to make YouTube player adjust
+        window.dispatchEvent(new Event('resize'));
+      }
+    }, 100);
   }, [toggleCustomFullscreen, toggleFullscreen]);
+
+  // Handle Picture-in-Picture toggle
+  const handleTogglePictureInPicture = useCallback(() => {
+    // Update current time before switching to PiP
+    if (playerRef.current) {
+      const currentTime = playerRef.current.getCurrentTime();
+      dispatch({ type: 'SET_CURRENT_TIME', payload: currentTime });
+    }
+    togglePictureInPicture();
+  }, [togglePictureInPicture, dispatch]);
 
   // Handle video navigation
   const handlePreviousVideo = useCallback(() => {
@@ -298,8 +322,8 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={() => setShowControls(false)}
     >
-      {/* YouTube Player */}
-      <div className="relative w-full h-full">
+      {/* YouTube Player - Hide when Picture-in-Picture is active */}
+      <div className={`relative w-full h-full ${state.isPictureInPicture ? 'opacity-0 pointer-events-none' : ''}`}>
         <YouTube
           videoId={videoId}
           opts={youtubeOpts}
@@ -310,8 +334,29 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         />
       </div>
 
-      {/* Custom Controls Overlay */}
-      {controls && (
+      {/* Picture-in-Picture Placeholder */}
+      {state.isPictureInPicture && (
+        <div className="absolute inset-0 bg-black flex items-center justify-center">
+          <div className="text-center text-white">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2M7 4h10M7 4l-4 4v12a1 1 0 001 1h16a1 1 0 001-1V8l-4-4M11 16h2v2h-2v-2z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Picture-in-Picture Mode</h3>
+            <p className="text-gray-300 mb-4">Video is playing in a floating window</p>
+            <button
+              onClick={handleTogglePictureInPicture}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Return to Main Player
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Controls Overlay - Hide when Picture-in-Picture is active */}
+      {controls && !state.isPictureInPicture && (
         <div
           className={`absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 transition-opacity duration-300 ${
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -386,7 +431,7 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
                 onVolumeChange={setVolume}
                 onToggleMute={toggleMute}
                 onToggleFullscreen={handleToggleFullscreen}
-                onTogglePictureInPicture={togglePictureInPicture}
+                onTogglePictureInPicture={handleTogglePictureInPicture}
                 onSpeedChange={setPlaybackSpeed}
               />
             </div>
