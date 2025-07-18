@@ -4,7 +4,6 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardStats from '@/components/dashboard/DashboardStats';
 import RecentPlaylists from '@/components/dashboard/RecentPlaylists';
-import QuickActions from '@/components/dashboard/QuickActions';
 import WelcomeSection from '@/components/dashboard/WelcomeSection';
 import RecommendationCarousel from '@/components/recommendations/RecommendationCarousel';
 
@@ -18,9 +17,6 @@ const Dashboard: React.FC = () => {
       
       {/* Stats Overview */}
       <DashboardStats />
-      
-      {/* Quick Actions */}
-      <QuickActions />
       
       {/* Smart Recommendations */}
       <RecommendationCarousel 
