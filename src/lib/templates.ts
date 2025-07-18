@@ -94,7 +94,7 @@ export class TemplateManager {
   static async createTemplate(template: Omit<TemplatePlaylist, 'id' | 'usageCount' | 'rating' | 'createdAt'>): Promise<string> {
     try {
       // Validate template data
-      const validatedTemplate = await this.validateTemplate(template);
+      const validatedTemplate = await TemplateManager.validateTemplate(template);
       
       const templateData: Omit<TemplatePlaylist, 'id'> = {
         ...validatedTemplate,
@@ -234,10 +234,10 @@ export class TemplateManager {
       const analytics = await getPlaylistAnalytics(playlistId);
       
       // Calculate estimated duration from videos
-      const estimatedDuration = await this.calculatePlaylistDuration(playlist.videoRefs);
+      const estimatedDuration = await TemplateManager.calculatePlaylistDuration(playlist.videoRefs);
       
       // Extract tags from videos
-      const tags = await this.extractTagsFromVideos(playlist.videoRefs);
+      const tags = await TemplateManager.extractTagsFromVideos(playlist.videoRefs);
 
       const template: Omit<TemplatePlaylist, 'id' | 'usageCount' | 'rating' | 'createdAt'> = {
         title: templateData.title,
@@ -251,11 +251,11 @@ export class TemplateManager {
         isPublic: templateData.isPublic
       };
 
-      const templateId = await this.createTemplate(template);
+      const templateId = await TemplateManager.createTemplate(template);
 
       // If playlist has good analytics, start with higher rating
       if (analytics && analytics.completionRate >= 80) {
-        await this.updateTemplate(templateId, { rating: 4.0 });
+        await TemplateManager.updateTemplate(templateId, { rating: 4.0 });
       }
 
       return templateId;
@@ -272,7 +272,7 @@ export class TemplateManager {
     customTitle?: string
   ): Promise<string> {
     try {
-      const template = await this.getTemplate(templateId);
+      const template = await TemplateManager.getTemplate(templateId);
       if (!template) {
         throw new Error('Template not found');
       }
@@ -289,7 +289,7 @@ export class TemplateManager {
       const playlistRef = await addDoc(collection(db, 'playlists'), playlistData);
 
       // Increment template usage count
-      await this.incrementTemplateUsage(templateId);
+      await TemplateManager.incrementTemplateUsage(templateId);
 
       return playlistRef.id;
     } catch (error) {
@@ -318,7 +318,7 @@ export class TemplateManager {
       });
 
       // Update template average rating
-      await this.updateTemplateRating(templateId);
+      await TemplateManager.updateTemplateRating(templateId);
     } catch (error) {
       console.error('Error rating template:', error);
       throw error;
@@ -328,7 +328,7 @@ export class TemplateManager {
   // Get featured templates for homepage
   static async getFeaturedTemplates(limit: number = 6): Promise<TemplatePlaylist[]> {
     try {
-      const templates = await this.getTemplates({
+      const templates = await TemplateManager.getTemplates({
         isPublic: true,
         orderBy: 'rating',
         limit
@@ -352,7 +352,7 @@ export class TemplateManager {
     limit: number = 10
   ): Promise<TemplatePlaylist[]> {
     try {
-      const allTemplates = await this.getTemplates({
+      const allTemplates = await TemplateManager.getTemplates({
         isPublic: true,
         difficulty,
         orderBy: 'rating'
@@ -362,7 +362,7 @@ export class TemplateManager {
       const scoredTemplates = allTemplates
         .map(template => ({
           ...template,
-          score: this.calculateTemplateScore(template, userTags)
+          score: TemplateManager.calculateTemplateScore(template, userTags)
         }))
         .filter(template => template.score > 0.3)
         .sort((a, b) => b.score - a.score)
