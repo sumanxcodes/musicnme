@@ -4,12 +4,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import YouTube, { YouTubeProps } from 'react-youtube';
 import { getPlaylist, getVideo } from '@/lib/firestore';
-import { Playlist, Video } from '@/types';
+import { Playlist, Video, SessionSettings } from '@/types';
+import { SessionTracker } from '@/lib/analytics';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SessionPlayerPage: React.FC = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const playerRef = useRef<any>(null);
+  const sessionTrackerRef = useRef<SessionTracker | null>(null);
   
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -29,6 +33,13 @@ const SessionPlayerPage: React.FC = () => {
     volume: parseFloat(searchParams.get('volume') || '0.8'),
   });
 
+  // Create session settings object for analytics
+  const sessionSettings: SessionSettings = {
+    autoplay: settings.autoplay,
+    fullscreen: settings.fullscreen,
+    volume: settings.volume,
+  };
+
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -38,6 +49,13 @@ const SessionPlayerPage: React.FC = () => {
       setError('No playlist specified');
       setIsLoading(false);
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (sessionTrackerRef.current) {
+        sessionTrackerRef.current.endSession('manual').catch(console.error);
+      }
+    };
   }, [settings.playlistId]);
 
   // Auto-enter fullscreen if enabled
@@ -121,6 +139,16 @@ const SessionPlayerPage: React.FC = () => {
       }
 
       setVideos(orderedVideos);
+
+      // Initialize session tracking
+      if (user && user.uid) {
+        sessionTrackerRef.current = new SessionTracker(
+          user.uid,
+          settings.playlistId,
+          sessionSettings
+        );
+        console.log('Session tracking initialized');
+      }
     } catch (err) {
       console.error('Error loading playlist:', err);
       setError('Failed to load playlist');
@@ -177,17 +205,27 @@ const SessionPlayerPage: React.FC = () => {
   const nextVideo = () => {
     if (videos.length === 0) return;
     
+    // End current video tracking
+    if (sessionTrackerRef.current) {
+      sessionTrackerRef.current.endVideo();
+    }
+    
     let nextIndex = currentVideoIndex + 1;
     if (nextIndex >= videos.length) {
       if (settings.loop) {
         nextIndex = 0;
       } else {
         // End of playlist
-        handleExitSession();
+        handleExitSession('completed');
         return;
       }
     }
     setCurrentVideoIndex(nextIndex);
+    
+    // Start tracking next video
+    if (sessionTrackerRef.current && videos[nextIndex]) {
+      sessionTrackerRef.current.startVideo(videos[nextIndex].videoId);
+    }
     
     // Auto-start next video if autoplay is enabled
     if (settings.autoplay && playerRef.current) {
@@ -200,6 +238,11 @@ const SessionPlayerPage: React.FC = () => {
   const previousVideo = () => {
     if (videos.length === 0) return;
     
+    // End current video tracking
+    if (sessionTrackerRef.current) {
+      sessionTrackerRef.current.endVideo();
+    }
+    
     let prevIndex = currentVideoIndex - 1;
     if (prevIndex < 0) {
       if (settings.loop) {
@@ -209,6 +252,11 @@ const SessionPlayerPage: React.FC = () => {
       }
     }
     setCurrentVideoIndex(prevIndex);
+    
+    // Start tracking previous video
+    if (sessionTrackerRef.current && videos[prevIndex]) {
+      sessionTrackerRef.current.startVideo(videos[prevIndex].videoId);
+    }
     
     // Auto-start previous video if autoplay is enabled
     if (settings.autoplay && playerRef.current) {
@@ -226,7 +274,17 @@ const SessionPlayerPage: React.FC = () => {
     }
   };
 
-  const handleExitSession = () => {
+  const handleExitSession = async (exitReason: 'completed' | 'manual' | 'error' = 'manual') => {
+    // End session tracking
+    if (sessionTrackerRef.current) {
+      try {
+        await sessionTrackerRef.current.endSession(exitReason);
+        console.log('Session analytics saved');
+      } catch (error) {
+        console.error('Error saving session analytics:', error);
+      }
+    }
+
     if (document.fullscreenElement) {
       document.exitFullscreen();
     }
@@ -236,6 +294,11 @@ const SessionPlayerPage: React.FC = () => {
   const onPlayerReady: YouTubeProps['onReady'] = (event) => {
     playerRef.current = event.target;
     event.target.setVolume(settings.volume * 100);
+    
+    // Start tracking the first video
+    if (sessionTrackerRef.current && currentVideo) {
+      sessionTrackerRef.current.startVideo(currentVideo.videoId);
+    }
     
     // Auto-start playback with a slight delay to ensure player is ready
     if (settings.autoplay) {
@@ -249,6 +312,36 @@ const SessionPlayerPage: React.FC = () => {
     const playerState = event.data;
     setIsPlaying(playerState === 1); // 1 = playing
     
+    // Track video state changes
+    if (sessionTrackerRef.current) {
+      if (playerState === 2) { // paused
+        sessionTrackerRef.current.recordPause();
+      }
+      
+      // Update progress periodically when playing
+      if (playerState === 1 && playerRef.current) { // playing
+        const updateProgress = () => {
+          if (playerRef.current && sessionTrackerRef.current) {
+            const currentTime = playerRef.current.getCurrentTime();
+            const duration = playerRef.current.getDuration();
+            if (duration > 0) {
+              const completionRate = Math.round((currentTime / duration) * 100);
+              sessionTrackerRef.current.updateVideoProgress(completionRate);
+            }
+          }
+        };
+        
+        // Update progress every 5 seconds while playing
+        const progressInterval = setInterval(() => {
+          if (playerRef.current?.getPlayerState() === 1) {
+            updateProgress();
+          } else {
+            clearInterval(progressInterval);
+          }
+        }, 5000);
+      }
+    }
+    
     if (playerState === 0) { // ended
       // Auto-advance to next video with seamless transition
       setTimeout(() => {
@@ -259,6 +352,12 @@ const SessionPlayerPage: React.FC = () => {
 
   const onPlayerError: YouTubeProps['onError'] = (event) => {
     console.error('YouTube player error:', event.data);
+    
+    // Track the error and skip
+    if (sessionTrackerRef.current) {
+      sessionTrackerRef.current.recordSkip();
+    }
+    
     nextVideo(); // Skip to next video on error
   };
 
@@ -302,7 +401,7 @@ const SessionPlayerPage: React.FC = () => {
           <h1 className="text-2xl font-bold mb-2">Session Error</h1>
           <p className="text-gray-300 mb-6">{error}</p>
           <button
-            onClick={handleExitSession}
+            onClick={() => handleExitSession('manual')}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             Return to Playlists
@@ -350,7 +449,7 @@ const SessionPlayerPage: React.FC = () => {
               <p className="text-sm text-gray-300 truncate">{currentVideo.title}</p>
             </div>
             <button
-              onClick={handleExitSession}
+              onClick={() => handleExitSession('manual')}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
               aria-label="Exit session"
             >
