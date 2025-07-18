@@ -131,7 +131,6 @@ export class TemplateManager {
   static async getTemplates(options: {
     category?: keyof typeof TEMPLATE_CATEGORIES;
     difficulty?: keyof typeof DIFFICULTY_LEVELS;
-    isPublic?: boolean;
     createdBy?: string;
     tags?: string[];
     limit?: number;
@@ -147,10 +146,6 @@ export class TemplateManager {
       
       if (options.difficulty) {
         constraints.push(where('difficulty', '==', options.difficulty));
-      }
-      
-      if (options.isPublic !== undefined) {
-        constraints.push(where('isPublic', '==', options.isPublic));
       }
       
       if (options.createdBy) {
@@ -215,7 +210,6 @@ export class TemplateManager {
       description: string;
       category: keyof typeof TEMPLATE_CATEGORIES;
       difficulty: keyof typeof DIFFICULTY_LEVELS;
-      isPublic: boolean;
       createdBy: string;
     }
   ): Promise<string> {
@@ -247,8 +241,7 @@ export class TemplateManager {
         tags,
         difficulty: templateData.difficulty,
         duration: estimatedDuration,
-        createdBy: templateData.createdBy,
-        isPublic: templateData.isPublic
+        createdBy: templateData.createdBy
       };
 
       const templateId = await TemplateManager.createTemplate(template);
@@ -329,7 +322,6 @@ export class TemplateManager {
   static async getFeaturedTemplates(limit: number = 6): Promise<TemplatePlaylist[]> {
     try {
       const templates = await TemplateManager.getTemplates({
-        isPublic: true,
         orderBy: 'rating',
         limit
       });
@@ -353,7 +345,6 @@ export class TemplateManager {
   ): Promise<TemplatePlaylist[]> {
     try {
       const allTemplates = await TemplateManager.getTemplates({
-        isPublic: true,
         difficulty,
         orderBy: 'rating'
       });

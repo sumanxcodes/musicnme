@@ -56,7 +56,6 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           const general = await getTemplates({
             category: selectedCategory === 'all' ? undefined : selectedCategory,
             difficulty: selectedDifficulty === 'all' ? undefined : selectedDifficulty,
-            isPublic: true,
             limit: maxTemplates - recommended.length,
             orderBy: 'rating'
           });
@@ -69,7 +68,6 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
         fetchedTemplates = await getTemplates({
           category: selectedCategory === 'all' ? undefined : selectedCategory,
           difficulty: selectedDifficulty === 'all' ? undefined : selectedDifficulty,
-          isPublic: true,
           limit: maxTemplates,
           orderBy: 'rating'
         });

@@ -138,7 +138,6 @@ export interface TemplatePlaylist {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   duration: number; // estimated duration in seconds
   createdBy: string;
-  isPublic: boolean;
   usageCount: number;
   rating: number; // 1-5
   createdAt: string;

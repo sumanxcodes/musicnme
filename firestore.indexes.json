@@ -113,20 +113,6 @@
       ]
     },
     {
-      "collectionGroup": "templates",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "isPublic",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "rating",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "user_preferences",
       "queryScope": "COLLECTION",
       "fields": [
