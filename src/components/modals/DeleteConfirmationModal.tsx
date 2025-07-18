@@ -61,7 +61,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                 </h3>
                 <div className="mt-2">
                   <p className="text-sm text-gray-500">
-                    Are you sure you want to delete the playlist "{playlist.title}"? This action cannot be undone.
+                    Are you sure you want to delete the playlist &ldquo;{playlist.title}&rdquo;? This action cannot be undone.
                   </p>
                   
                   {playlist.videoRefs.length > 0 && (
@@ -95,7 +95,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                       </div>
                       {playlist.notes && (
                         <div className="mt-2 ml-6 text-gray-500">
-                          "{playlist.notes}"
+                          &ldquo;{playlist.notes}&rdquo;
                         </div>
                       )}
                     </div>

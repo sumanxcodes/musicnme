@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Playlist, Video } from '@/types';
-import { getPlaylist } from '@/lib/firestore';
-import { getVideo } from '@/lib/youtube';
+import { getPlaylist, getVideo } from '@/lib/firestore';
 
 interface SessionLauncherProps {
   playlist: Playlist;

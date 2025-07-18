@@ -68,7 +68,7 @@ Hi,
 ${user.displayName || 'A colleague'} has shared a music therapy playlist with you:
 
 Playlist: ${playlist.title}
-${playlist.description ? `Description: ${playlist.description}` : ''}
+${playlist.notes ? `Description: ${playlist.notes}` : ''}
 Videos: ${playlist.videoRefs.length} videos
 
 ${message ? `Message: ${message}` : ''}
@@ -109,8 +109,8 @@ Music and Me Team
           {/* Playlist Info */}
           <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="font-medium text-gray-900 mb-2">{playlist.title}</h3>
-            {playlist.description && (
-              <p className="text-sm text-gray-600 mb-2">{playlist.description}</p>
+            {playlist.notes && (
+              <p className="text-sm text-gray-600 mb-2">{playlist.notes}</p>
             )}
             <p className="text-sm text-gray-500">
               {playlist.videoRefs.length} videos • Last updated {new Date(playlist.createdAt).toLocaleDateString()}

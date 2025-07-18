@@ -168,7 +168,7 @@ const PlaylistGrid: React.FC<PlaylistGridProps> = ({
           {searchQuery ? (
             <div className="space-y-2">
               <p className="text-sm text-gray-500">
-                No playlists found matching "{searchQuery}"
+                No playlists found matching &ldquo;{searchQuery}&rdquo;
               </p>
               <button
                 onClick={() => setSearchQuery('')}

@@ -146,7 +146,7 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
                   <option value="all">All Durations</option>
                   <option value="short">Short (≤3 min)</option>
                   <option value="medium">Medium (3-10 min)</option>
-                  <option value="long">Long (>10 min)</option>
+                  <option value="long">Long (&gt;10 min)</option>
                 </select>
               </div>
 

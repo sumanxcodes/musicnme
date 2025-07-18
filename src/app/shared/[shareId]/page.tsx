@@ -137,9 +137,9 @@ const SharedPlaylistPage: React.FC = () => {
                 {sharedPlaylist.playlist.title}
               </h1>
               
-              {sharedPlaylist.playlist.description && (
+              {sharedPlaylist.playlist.notes && (
                 <p className="text-gray-600 mb-4 text-lg">
-                  {sharedPlaylist.playlist.description}
+                  {sharedPlaylist.playlist.notes}
                 </p>
               )}
               

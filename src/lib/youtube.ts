@@ -1,5 +1,26 @@
 interface YouTubeVideoDetails {
   id: string;
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    thumbnails?: {
+      high?: { url: string };
+      medium?: { url: string };
+      default?: { url: string };
+    };
+    description?: string;
+  };
+  contentDetails?: {
+    duration?: string;
+  };
+}
+
+interface YouTubeApiResponse {
+  items: YouTubeVideoDetails[];
+}
+
+interface ProcessedVideoData {
+  id: string;
   title: string;
   channelTitle: string;
   thumbnails: {
@@ -9,10 +30,6 @@ interface YouTubeVideoDetails {
   };
   duration: string;
   description: string;
-}
-
-interface YouTubeApiResponse {
-  items: YouTubeVideoDetails[];
 }
 
 // Extract video ID from various YouTube URL formats
@@ -52,7 +69,7 @@ export const formatDuration = (duration: string): string => {
 };
 
 // Fetch video metadata from YouTube API
-export const fetchVideoMetadata = async (videoId: string): Promise<YouTubeVideoDetails | null> => {
+export const fetchVideoMetadata = async (videoId: string): Promise<ProcessedVideoData | null> => {
   try {
     const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
     if (!apiKey || apiKey === 'your_youtube_data_api_key') {
@@ -83,17 +100,23 @@ export const fetchVideoMetadata = async (videoId: string): Promise<YouTubeVideoD
     const snippet = video.snippet || {};
     const contentDetails = video.contentDetails || {};
     
+    const defaultThumbnails = {
+      high: { url: '' },
+      medium: { url: '' },
+      default: { url: '' }
+    };
+
     return {
       id: video.id,
-      title: snippet.title || 'Untitled Video',
-      channelTitle: snippet.channelTitle || 'Unknown Channel',
-      thumbnails: snippet.thumbnails || {
-        high: { url: '' },
-        medium: { url: '' },
-        default: { url: '' }
+      title: snippet?.title || 'Untitled Video',
+      channelTitle: snippet?.channelTitle || 'Unknown Channel',
+      thumbnails: {
+        high: snippet?.thumbnails?.high || { url: '' },
+        medium: snippet?.thumbnails?.medium || { url: '' },
+        default: snippet?.thumbnails?.default || { url: '' }
       },
-      duration: formatDuration(contentDetails.duration || 'PT0S'),
-      description: snippet.description || ''
+      duration: formatDuration(contentDetails?.duration || 'PT0S'),
+      description: snippet?.description || ''
     };
   } catch (error) {
     console.error('Error fetching video metadata:', error);
@@ -102,7 +125,7 @@ export const fetchVideoMetadata = async (videoId: string): Promise<YouTubeVideoD
 };
 
 // Fetch video metadata by URL
-export const fetchVideoMetadataByUrl = async (url: string): Promise<YouTubeVideoDetails | null> => {
+export const fetchVideoMetadataByUrl = async (url: string): Promise<ProcessedVideoData | null> => {
   const videoId = extractVideoId(url);
   if (!videoId) return null;
   
@@ -110,7 +133,7 @@ export const fetchVideoMetadataByUrl = async (url: string): Promise<YouTubeVideo
 };
 
 // Generate auto-tags based on video metadata
-export const generateAutoTags = (video: YouTubeVideoDetails): string[] => {
+export const generateAutoTags = (video: ProcessedVideoData): string[] => {
   const tags: string[] = [];
   const title = video.title.toLowerCase();
   const description = video.description.toLowerCase();

@@ -74,7 +74,7 @@ export const validatePlaylist = (data: unknown) => {
     return playlistSchema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors };
+      return { error: error.issues };
     }
     return { error: 'Invalid playlist data' };
   }
@@ -85,7 +85,7 @@ export const validateVideo = (data: unknown) => {
     return videoSchema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors };
+      return { error: error.issues };
     }
     return { error: 'Invalid video data' };
   }
@@ -96,7 +96,7 @@ export const validateYouTubeUrl = (url: string) => {
     return youtubeUrlSchema.parse(url);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0]?.message || 'Invalid YouTube URL' };
+      return { error: error.issues[0]?.message || 'Invalid YouTube URL' };
     }
     return { error: 'Invalid YouTube URL' };
   }
@@ -107,7 +107,7 @@ export const validateTag = (data: unknown) => {
     return tagSchema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors };
+      return { error: error.issues };
     }
     return { error: 'Invalid tag data' };
   }
@@ -118,7 +118,7 @@ export const validateSearch = (data: unknown) => {
     return searchSchema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors };
+      return { error: error.issues };
     }
     return { error: 'Invalid search parameters' };
   }
@@ -160,9 +160,10 @@ export const sanitizeVideoData = (data: any) => {
 export const formatValidationError = (error: z.ZodError): Record<string, string> => {
   const formatted: Record<string, string> = {};
   
-  error.errors.forEach((err) => {
+  error.issues.forEach((err) => {
     if (err.path.length > 0) {
-      formatted[err.path[0]] = err.message;
+      const key = String(err.path[0]);
+      formatted[key] = err.message;
     }
   });
   

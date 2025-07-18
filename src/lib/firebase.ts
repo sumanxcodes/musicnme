@@ -20,10 +20,6 @@ export const auth = getAuth(app);
 // Initialize Firestore with simpler configuration to avoid WebChannel errors
 export const db = typeof window !== 'undefined' 
   ? initializeFirestore(app, {
-      cache: {
-        sizeBytes: 10 * 1024 * 1024, // 10MB cache
-        tabManager: 'SharedClientState'
-      },
       experimentalForceLongPolling: true, // Use long polling instead of WebChannel
     })
   : getFirestore(app);

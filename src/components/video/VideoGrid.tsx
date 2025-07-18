@@ -140,7 +140,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
           </h3>
           {searchQuery && (
             <p className="text-sm text-gray-500 mb-4">
-              No videos found matching "{searchQuery}"
+              No videos found matching &ldquo;{searchQuery}&rdquo;
             </p>
           )}
           <button
@@ -158,7 +158,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">
               {filteredVideos.length} video{filteredVideos.length !== 1 ? 's' : ''}
-              {searchQuery && ` matching "${searchQuery}"`}
+              {searchQuery && ` matching ${searchQuery}`}
             </p>
             
             {selectedVideos.length > 0 && (

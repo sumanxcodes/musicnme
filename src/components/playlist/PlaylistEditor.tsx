@@ -18,8 +18,8 @@ import {
 } from '@dnd-kit/sortable';
 import { 
   useSortable,
-  CSS,
 } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPlaylistWithVideos, updatePlaylist } from '@/lib/firestore';
 import { Playlist, PlaylistWithVideos, Video } from '@/types';
@@ -308,7 +308,7 @@ const PlaylistEditor: React.FC<PlaylistEditorProps> = ({ playlistId, onClose }) 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
           <h3 className="mt-2 text-sm font-medium text-gray-900">Playlist not found</h3>
-          <p className="mt-1 text-sm text-gray-500">The playlist you're looking for doesn't exist or has been deleted.</p>
+          <p className="mt-1 text-sm text-gray-500">The playlist you&rsquo;re looking for doesn&rsquo;t exist or has been deleted.</p>
         </div>
       </div>
     );

@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import YouTube, { YouTubeProps } from 'react-youtube';
-import { getPlaylist } from '@/lib/firestore';
-import { getVideo } from '@/lib/youtube';
+import { getPlaylist, getVideo } from '@/lib/firestore';
 import { Playlist, Video } from '@/types';
 
 const SessionPlayerPage: React.FC = () => {
@@ -132,7 +131,7 @@ const SessionPlayerPage: React.FC = () => {
 
   const shuffleArray = (array: Video[]): Video[] => {
     const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--; ) {
+    for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
