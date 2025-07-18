@@ -112,7 +112,7 @@ const DeleteVideoModal: React.FC<DeleteVideoModalProps> = ({
           {!usageInfo.isUsed && (
             <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
               <p className="text-sm text-gray-600">
-                Are you sure you want to delete "{video.title}"? This action cannot be undone.
+                Are you sure you want to delete &quot;{video.title}&quot;? This action cannot be undone.
               </p>
             </div>
           )}

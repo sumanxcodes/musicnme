@@ -1,35 +1,34 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import YouTube, { YouTubeProps } from 'react-youtube';
 import { getPlaylist, getVideo } from '@/lib/firestore';
 import { Playlist, Video, SessionSettings } from '@/types';
 import { SessionTracker } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
+import { useVideoPlayer } from '@/contexts/VideoPlayerContext';
+import EnhancedVideoPlayer from '@/components/video/EnhancedVideoPlayer';
 
 const SessionPlayerPage: React.FC = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const playerRef = useRef<any>(null);
-  const sessionTrackerRef = useRef<SessionTracker | null>(null);
+  const { state, playVideo, dispatch } = useVideoPlayer();
   
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sessionTracker, setSessionTracker] = useState<SessionTracker | null>(null);
   
   // Session settings from URL params
   const [settings] = useState({
     playlistId: searchParams.get('playlistId') || '',
-    autoplay: searchParams.get('autoplay') !== 'false', // Default to true unless explicitly disabled
+    autoplay: searchParams.get('autoplay') !== 'false',
     shuffle: searchParams.get('shuffle') === 'true',
     loop: searchParams.get('loop') === 'true',
-    fullscreen: searchParams.get('fullscreen') !== 'false', // Default to true unless explicitly disabled
+    fullscreen: searchParams.get('fullscreen') !== 'false',
     volume: parseFloat(searchParams.get('volume') || '0.8'),
   });
 
@@ -39,8 +38,6 @@ const SessionPlayerPage: React.FC = () => {
     fullscreen: settings.fullscreen,
     volume: settings.volume,
   };
-
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (settings.playlistId) {
@@ -52,56 +49,28 @@ const SessionPlayerPage: React.FC = () => {
 
     // Cleanup on unmount
     return () => {
-      if (sessionTrackerRef.current) {
-        sessionTrackerRef.current.endSession('manual').catch(console.error);
+      if (sessionTracker) {
+        sessionTracker.endSession('manual').catch(console.error);
       }
     };
   }, [settings.playlistId]);
 
-  // Auto-enter fullscreen if enabled
+  // Apply initial settings to video player
   useEffect(() => {
-    if (settings.fullscreen && !isLoading && !error && videos.length > 0) {
-      const timer = setTimeout(() => {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(console.error);
-        }
-      }, 1000); // Delay to allow page to load
+    if (!isLoading && videos.length > 0) {
+      dispatch({ type: 'SET_VOLUME', payload: settings.volume });
+      dispatch({ type: 'SET_AUTOPLAY', payload: settings.autoplay });
+      dispatch({ type: 'SET_LOOP', payload: settings.loop });
+      dispatch({ type: 'SET_SHUFFLE', payload: settings.shuffle });
 
-      return () => clearTimeout(timer);
+      // Auto-enter fullscreen if enabled
+      if (settings.fullscreen) {
+        setTimeout(() => {
+          dispatch({ type: 'SET_FULLSCREEN', payload: true });
+        }, 1000);
+      }
     }
-  }, [settings.fullscreen, isLoading, error, videos.length]);
-
-  useEffect(() => {
-    // Auto-hide controls after 3 seconds of inactivity
-    const resetControlsTimeout = () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-      setShowControls(true);
-      controlsTimeoutRef.current = setTimeout(() => {
-        if (isPlaying) {
-          setShowControls(false);
-        }
-      }, 3000);
-    };
-
-    const handleMouseMove = () => resetControlsTimeout();
-    const handleKeyPress = (e: KeyboardEvent) => {
-      resetControlsTimeout();
-      handleKeyboardControls(e);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('keydown', handleKeyPress);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('keydown', handleKeyPress);
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-    };
-  }, [isPlaying]);
+  }, [isLoading, videos.length, settings, dispatch]);
 
   const loadPlaylistData = async () => {
     setIsLoading(true);
@@ -139,14 +108,21 @@ const SessionPlayerPage: React.FC = () => {
       }
 
       setVideos(orderedVideos);
+      setCurrentVideoIndex(0);
+
+      // Initialize the first video in the player
+      if (orderedVideos.length > 0) {
+        playVideo(orderedVideos[0], playlistData, orderedVideos, 0);
+      }
 
       // Initialize session tracking
       if (user && user.uid) {
-        sessionTrackerRef.current = new SessionTracker(
+        const tracker = new SessionTracker(
           user.uid,
           settings.playlistId,
           sessionSettings
         );
+        setSessionTracker(tracker);
         console.log('Session tracking initialized');
       }
     } catch (err) {
@@ -166,218 +142,77 @@ const SessionPlayerPage: React.FC = () => {
     return shuffled;
   };
 
-  const handleKeyboardControls = (e: KeyboardEvent) => {
-    switch (e.code) {
-      case 'Space':
-        e.preventDefault();
-        togglePlayPause();
-        break;
-      case 'ArrowRight':
-        e.preventDefault();
-        nextVideo();
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        previousVideo();
-        break;
-      case 'Escape':
-        e.preventDefault();
-        handleExitSession();
-        break;
-      case 'KeyF':
-        e.preventDefault();
-        toggleFullscreen();
-        break;
-    }
-  };
-
-  const togglePlayPause = () => {
-    if (playerRef.current) {
-      const playerState = playerRef.current.getPlayerState();
-      if (playerState === 1) { // Playing
-        playerRef.current.pauseVideo();
-      } else {
-        playerRef.current.playVideo();
+  const handleVideoChange = (newIndex: number) => {
+    if (newIndex >= 0 && newIndex < videos.length) {
+      setCurrentVideoIndex(newIndex);
+      
+      // End current video tracking
+      if (sessionTracker) {
+        sessionTracker.endVideo();
+      }
+      
+      // Update video player
+      playVideo(videos[newIndex], playlist || undefined, videos, newIndex);
+      
+      // Start tracking new video
+      if (sessionTracker) {
+        sessionTracker.startVideo(videos[newIndex].videoId);
       }
     }
   };
 
-  const nextVideo = () => {
-    if (videos.length === 0) return;
-    
-    // End current video tracking
-    if (sessionTrackerRef.current) {
-      sessionTrackerRef.current.endVideo();
-    }
-    
-    let nextIndex = currentVideoIndex + 1;
-    if (nextIndex >= videos.length) {
-      if (settings.loop) {
-        nextIndex = 0;
-      } else {
-        // End of playlist
-        handleExitSession('completed');
-        return;
-      }
-    }
-    setCurrentVideoIndex(nextIndex);
-    
-    // Start tracking next video
-    if (sessionTrackerRef.current && videos[nextIndex]) {
-      sessionTrackerRef.current.startVideo(videos[nextIndex].videoId);
-    }
-    
-    // Auto-start next video if autoplay is enabled
-    if (settings.autoplay && playerRef.current) {
-      setTimeout(() => {
-        playerRef.current?.playVideo();
-      }, 1000); // Wait for video to load
-    }
-  };
-
-  const previousVideo = () => {
-    if (videos.length === 0) return;
-    
-    // End current video tracking
-    if (sessionTrackerRef.current) {
-      sessionTrackerRef.current.endVideo();
-    }
-    
-    let prevIndex = currentVideoIndex - 1;
-    if (prevIndex < 0) {
-      if (settings.loop) {
-        prevIndex = videos.length - 1;
-      } else {
-        prevIndex = 0;
-      }
-    }
-    setCurrentVideoIndex(prevIndex);
-    
-    // Start tracking previous video
-    if (sessionTrackerRef.current && videos[prevIndex]) {
-      sessionTrackerRef.current.startVideo(videos[prevIndex].videoId);
-    }
-    
-    // Auto-start previous video if autoplay is enabled
-    if (settings.autoplay && playerRef.current) {
-      setTimeout(() => {
-        playerRef.current?.playVideo();
-      }, 1000); // Wait for video to load
-    }
-  };
-
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
+  const handlePlaylistEnd = () => {
+    if (settings.loop) {
+      handleVideoChange(0);
     } else {
-      document.documentElement.requestFullscreen();
+      handleExitSession('completed');
     }
   };
 
   const handleExitSession = async (exitReason: 'completed' | 'manual' | 'error' = 'manual') => {
     // End session tracking
-    if (sessionTrackerRef.current) {
+    if (sessionTracker) {
       try {
-        await sessionTrackerRef.current.endSession(exitReason);
+        await sessionTracker.endSession(exitReason);
         console.log('Session analytics saved');
       } catch (error) {
         console.error('Error saving session analytics:', error);
       }
     }
 
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
+    // Exit fullscreen if active
+    if (state.isFullscreen) {
+      dispatch({ type: 'SET_FULLSCREEN', payload: false });
     }
+
+    // Navigate back to playlists
     router.push('/playlists');
   };
 
-  const onPlayerReady: YouTubeProps['onReady'] = (event) => {
-    playerRef.current = event.target;
-    event.target.setVolume(settings.volume * 100);
-    
+  const handlePlayerReady = () => {
     // Start tracking the first video
-    if (sessionTrackerRef.current && currentVideo) {
-      sessionTrackerRef.current.startVideo(currentVideo.videoId);
-    }
-    
-    // Auto-start playback with a slight delay to ensure player is ready
-    if (settings.autoplay) {
-      setTimeout(() => {
-        event.target.playVideo();
-      }, 500);
+    if (sessionTracker && videos[currentVideoIndex]) {
+      sessionTracker.startVideo(videos[currentVideoIndex].videoId);
     }
   };
 
-  const onPlayerStateChange: YouTubeProps['onStateChange'] = (event) => {
-    const playerState = event.data;
-    setIsPlaying(playerState === 1); // 1 = playing
-    
-    // Track video state changes
-    if (sessionTrackerRef.current) {
-      if (playerState === 2) { // paused
-        sessionTrackerRef.current.recordPause();
-      }
-      
-      // Update progress periodically when playing
-      if (playerState === 1 && playerRef.current) { // playing
-        const updateProgress = () => {
-          if (playerRef.current && sessionTrackerRef.current) {
-            const currentTime = playerRef.current.getCurrentTime();
-            const duration = playerRef.current.getDuration();
-            if (duration > 0) {
-              const completionRate = Math.round((currentTime / duration) * 100);
-              sessionTrackerRef.current.updateVideoProgress(completionRate);
-            }
-          }
-        };
-        
-        // Update progress every 5 seconds while playing
-        const progressInterval = setInterval(() => {
-          if (playerRef.current?.getPlayerState() === 1) {
-            updateProgress();
-          } else {
-            clearInterval(progressInterval);
-          }
-        }, 5000);
-      }
-    }
-    
-    if (playerState === 0) { // ended
-      // Auto-advance to next video with seamless transition
-      setTimeout(() => {
-        nextVideo();
-      }, 300); // Small delay for smooth transition
-    }
-  };
-
-  const onPlayerError: YouTubeProps['onError'] = (event) => {
-    console.error('YouTube player error:', event.data);
+  const handlePlayerError = (error: any) => {
+    console.error('Video player error:', error);
     
     // Track the error and skip
-    if (sessionTrackerRef.current) {
-      sessionTrackerRef.current.recordSkip();
+    if (sessionTracker) {
+      sessionTracker.recordSkip();
     }
     
-    nextVideo(); // Skip to next video on error
+    // Try next video
+    if (currentVideoIndex < videos.length - 1) {
+      handleVideoChange(currentVideoIndex + 1);
+    } else {
+      handleExitSession('error');
+    }
   };
 
-  const currentVideo = videos[currentVideoIndex];
-
-  const youtubeOpts: YouTubeProps['opts'] = {
-    height: '100%',
-    width: '100%',
-    playerVars: {
-      autoplay: settings.autoplay ? 1 : 0,
-      controls: 0, // Hide YouTube controls, we'll use custom ones
-      disablekb: 1, // Disable keyboard controls (we handle them)
-      fs: 0, // Disable fullscreen button
-      modestbranding: 1,
-      rel: 0,
-      showinfo: 0,
-      iv_load_policy: 3,
-    },
-  };
-
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -389,6 +224,7 @@ const SessionPlayerPage: React.FC = () => {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -411,137 +247,69 @@ const SessionPlayerPage: React.FC = () => {
     );
   }
 
-  if (!currentVideo) {
+  // No video available
+  if (!videos[currentVideoIndex]) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center text-white">
           <p className="text-lg">No video available</p>
+          <button
+            onClick={() => handleExitSession('manual')}
+            className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Return to Playlists
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* YouTube Player */}
-      <div className="absolute inset-0">
-        <YouTube
-          videoId={currentVideo.videoId}
-          opts={youtubeOpts}
-          onReady={onPlayerReady}
-          onStateChange={onPlayerStateChange}
-          onError={onPlayerError}
-          className="w-full h-full"
-        />
-      </div>
+    <div className="min-h-screen bg-black">
+      {/* Enhanced Video Player */}
+      <EnhancedVideoPlayer
+        videoId={videos[currentVideoIndex].videoId}
+        playlist={playlist || undefined}
+        videos={videos}
+        currentIndex={currentVideoIndex}
+        onVideoChange={handleVideoChange}
+        onPlaylistEnd={handlePlaylistEnd}
+        autoplay={settings.autoplay}
+        onReady={handlePlayerReady}
+        onError={handlePlayerError}
+        className="w-full h-screen"
+      />
 
-      {/* Custom Controls Overlay */}
-      <div 
-        className={`absolute inset-0 transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+      {/* Exit Session Button (always visible) */}
+      <button
+        onClick={() => handleExitSession('manual')}
+        className="fixed top-4 right-4 z-50 p-3 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full transition-all duration-200"
+        aria-label="Exit session"
       >
-        {/* Top Bar */}
-        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-6">
-          <div className="flex items-center justify-between text-white">
-            <div className="flex-1">
-              <h1 className="text-xl font-semibold truncate">{playlist?.title}</h1>
-              <p className="text-sm text-gray-300 truncate">{currentVideo.title}</p>
-            </div>
-            <button
-              onClick={() => handleExitSession('manual')}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-              aria-label="Exit session"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* Session Info (overlay) */}
+      {playlist && (
+        <div className="fixed top-4 left-4 z-40 bg-black bg-opacity-50 text-white rounded-lg p-3 max-w-xs">
+          <h3 className="font-semibold text-sm truncate">{playlist.title}</h3>
+          <p className="text-xs text-gray-300 mt-1">
+            {currentVideoIndex + 1} of {videos.length} videos
+          </p>
+          {settings.shuffle && (
+            <span className="inline-block mt-2 px-2 py-1 bg-blue-600 text-xs rounded">
+              SHUFFLE
+            </span>
+          )}
+          {settings.loop && (
+            <span className="inline-block mt-2 ml-2 px-2 py-1 bg-green-600 text-xs rounded">
+              LOOP
+            </span>
+          )}
         </div>
-
-        {/* Center Controls */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex items-center space-x-8">
-            <button
-              onClick={previousVideo}
-              className="p-4 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-              aria-label="Previous video"
-            >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-
-            <button
-              onClick={togglePlayPause}
-              className="p-6 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? (
-                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
-                </svg>
-              ) : (
-                <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              )}
-            </button>
-
-            <button
-              onClick={nextVideo}
-              className="p-4 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-              aria-label="Next video"
-            >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
-          <div className="flex items-center justify-between text-white">
-            <div className="flex items-center space-x-4">
-              <span className="text-sm">
-                {currentVideoIndex + 1} of {videos.length}
-              </span>
-              <div className="flex items-center space-x-2">
-                {settings.shuffle && (
-                  <span className="px-2 py-1 bg-blue-600 rounded text-xs">SHUFFLE</span>
-                )}
-                {settings.loop && (
-                  <span className="px-2 py-1 bg-green-600 rounded text-xs">LOOP</span>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={toggleFullscreen}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Toggle fullscreen"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Keyboard Shortcuts Hint */}
-        <div className="absolute bottom-20 right-6 text-white text-xs opacity-60">
-          <div className="bg-black/50 rounded-lg p-3 space-y-1">
-            <div>Space: Play/Pause</div>
-            <div>← →: Previous/Next</div>
-            <div>F: Fullscreen</div>
-            <div>Esc: Exit Session</div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
