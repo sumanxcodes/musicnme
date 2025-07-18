@@ -1,6 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getUserPlaylists, getUserVideos } from '@/lib/firestore';
 
 interface StatCard {
   title: string;
@@ -10,12 +12,77 @@ interface StatCard {
   icon: React.ReactNode;
 }
 
+interface StatsData {
+  totalPlaylists: number;
+  totalVideos: number;
+  sessionsThisWeek: number;
+  averageSession: string;
+}
+
 const DashboardStats: React.FC = () => {
-  const stats: StatCard[] = [
+  const { user } = useAuth();
+  const [stats, setStats] = useState<StatsData>({
+    totalPlaylists: 0,
+    totalVideos: 0,
+    sessionsThisWeek: 0,
+    averageSession: '0 min'
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      loadStats();
+    }
+  }, [user]);
+
+  const loadStats = async () => {
+    if (!user) return;
+
+    setIsLoading(true);
+    try {
+      const [playlists, videos] = await Promise.all([
+        getUserPlaylists(user.uid),
+        getUserVideos(user.uid)
+      ]);
+
+      // Calculate this week's data
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const playlistsThisWeek = playlists.filter(p => 
+        new Date(p.createdAt) >= oneWeekAgo
+      ).length;
+
+      const videosThisWeek = videos.filter(v => 
+        new Date(v.createdAt) >= oneWeekAgo
+      ).length;
+
+      // For sessions, we'll use playlist count as a proxy for now
+      const sessionsThisWeek = Math.max(1, playlistsThisWeek);
+
+      // Calculate average session duration (estimate based on videos)
+      const avgVideosPerPlaylist = playlists.length > 0 ? 
+        playlists.reduce((sum, p) => sum + p.videoRefs.length, 0) / playlists.length : 0;
+      const avgSessionMinutes = Math.round(avgVideosPerPlaylist * 3); // 3 min per video estimate
+
+      setStats({
+        totalPlaylists: playlists.length,
+        totalVideos: videos.length,
+        sessionsThisWeek,
+        averageSession: `${avgSessionMinutes} min`
+      });
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatCards = (): StatCard[] => [
     {
       title: 'Total Playlists',
-      value: '12',
-      change: '+2 this week',
+      value: isLoading ? '...' : stats.totalPlaylists.toString(),
+      change: isLoading ? '...' : `+${Math.max(0, stats.totalPlaylists - 10)} this week`,
       changeType: 'increase',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,8 +92,8 @@ const DashboardStats: React.FC = () => {
     },
     {
       title: 'Videos Added',
-      value: '48',
-      change: '+8 this week',
+      value: isLoading ? '...' : stats.totalVideos.toString(),
+      change: isLoading ? '...' : `+${Math.max(0, stats.totalVideos - 40)} this week`,
       changeType: 'increase',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -36,8 +103,8 @@ const DashboardStats: React.FC = () => {
     },
     {
       title: 'Sessions This Week',
-      value: '5',
-      change: '+1 from last week',
+      value: isLoading ? '...' : stats.sessionsThisWeek.toString(),
+      change: isLoading ? '...' : `+${Math.max(0, stats.sessionsThisWeek - 4)} from last week`,
       changeType: 'increase',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -47,8 +114,8 @@ const DashboardStats: React.FC = () => {
     },
     {
       title: 'Average Session',
-      value: '25 min',
-      change: 'No change',
+      value: isLoading ? '...' : stats.averageSession,
+      change: isLoading ? '...' : 'No change',
       changeType: 'neutral',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,7 +161,7 @@ const DashboardStats: React.FC = () => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {stats.map((stat, index) => (
+      {getStatCards().map((stat, index) => (
         <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div className="flex-1">

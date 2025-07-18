@@ -6,7 +6,6 @@ import DashboardStats from '@/components/dashboard/DashboardStats';
 import RecentPlaylists from '@/components/dashboard/RecentPlaylists';
 import WelcomeSection from '@/components/dashboard/WelcomeSection';
 import RecommendationCarousel from '@/components/recommendations/RecommendationCarousel';
-import QuickStatsCards from '@/components/dashboard/QuickStatsCards';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 
 const Dashboard: React.FC = () => {
@@ -16,9 +15,6 @@ const Dashboard: React.FC = () => {
     <div className="space-y-8">
       {/* Welcome Section */}
       <WelcomeSection />
-      
-      {/* Quick Stats Cards */}
-      <QuickStatsCards />
       
       {/* Stats Overview */}
       <DashboardStats />
