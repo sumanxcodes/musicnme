@@ -124,7 +124,7 @@ export interface RecommendationData {
   itemId: string;
   score: number; // 0-1
   reasons: string[];
-  basedOn: 'usage' | 'time' | 'tags' | 'collaborative';
+  basedOn: 'usage' | 'time' | 'tags' | 'collaborative' | 'content';
   createdAt: string;
 }
 
