@@ -142,3 +142,9 @@ export interface TemplatePlaylist {
   rating: number; // 1-5
   createdAt: string;
 }
+
+export interface VideoUsageInfo {
+  isUsed: boolean;
+  playlistCount: number;
+  playlists: Playlist[];
+}

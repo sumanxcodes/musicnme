@@ -263,3 +263,63 @@ export const deletePlaylist = async (playlistId: string): Promise<void> => {
     throw error;
   }
 };
+
+export const deleteVideo = async (videoId: string): Promise<void> => {
+  try {
+    const videoRef = doc(db, 'videos', videoId);
+    await deleteDoc(videoRef);
+  } catch (error) {
+    console.error('Error deleting video:', error);
+    throw error;
+  }
+};
+
+export const getPlaylistsUsingVideo = async (videoId: string): Promise<Playlist[]> => {
+  try {
+    const playlistsRef = collection(db, 'playlists');
+    const q = query(
+      playlistsRef,
+      where('videoRefs', 'array-contains', videoId)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const playlists: Playlist[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      playlists.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      } as Playlist);
+    });
+    
+    return playlists;
+  } catch (error) {
+    console.error('Error getting playlists using video:', error);
+    return [];
+  }
+};
+
+export const checkVideoUsage = async (videoId: string): Promise<{
+  isUsed: boolean;
+  playlistCount: number;
+  playlists: Playlist[];
+}> => {
+  try {
+    const playlists = await getPlaylistsUsingVideo(videoId);
+    
+    return {
+      isUsed: playlists.length > 0,
+      playlistCount: playlists.length,
+      playlists
+    };
+  } catch (error) {
+    console.error('Error checking video usage:', error);
+    return {
+      isUsed: false,
+      playlistCount: 0,
+      playlists: []
+    };
+  }
+};

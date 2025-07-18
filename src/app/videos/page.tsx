@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllVideos } from '@/lib/firestore';
-import { Video } from '@/types';
+import { getAllVideos, checkVideoUsage, deleteVideo, updatePlaylist } from '@/lib/firestore';
+import { Video, VideoUsageInfo } from '@/types';
 import VideoGrid from '@/components/video/VideoGrid';
 import VideoUploader from '@/components/video/VideoUploader';
 import TagManager from '@/components/tags/TagManager';
+import DeleteVideoModal from '@/components/modals/DeleteVideoModal';
 
 const VideosPage: React.FC = () => {
   const { user } = useAuth();
@@ -14,6 +15,9 @@ const VideosPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showUploader, setShowUploader] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
+  const [videoUsageInfo, setVideoUsageInfo] = useState<VideoUsageInfo | null>(null);
   const [selectedVideos, setSelectedVideos] = useState<Video[]>([]);
 
   useEffect(() => {
@@ -72,14 +76,48 @@ const VideosPage: React.FC = () => {
   };
 
   const handleVideoDelete = async (video: Video) => {
-    if (!confirm(`Are you sure you want to delete "${video.title}"?`)) return;
+    try {
+      // Check if video is used in any playlists
+      const usageInfo = await checkVideoUsage(video.videoId);
+      
+      // Set the video to be deleted and show the modal
+      setVideoToDelete(video);
+      setVideoUsageInfo(usageInfo);
+      setShowDeleteModal(true);
+    } catch (error) {
+      console.error('Error checking video usage:', error);
+      alert('Error checking video usage. Please try again.');
+    }
+  };
+
+  const handleConfirmDelete = async (removeFromPlaylists: boolean) => {
+    if (!videoToDelete) return;
     
     try {
-      // Note: In a real app, you'd want to check if video is used in playlists
-      // For now, we'll just remove it from the local state
-      setVideos(prev => prev.filter(v => v.videoId !== video.videoId));
+      // If video is used in playlists and user chose to remove it
+      if (removeFromPlaylists && videoUsageInfo?.isUsed) {
+        // Remove video from all playlists first
+        for (const playlist of videoUsageInfo.playlists) {
+          const updatedVideoRefs = playlist.videoRefs.filter(ref => ref !== videoToDelete.videoId);
+          await updatePlaylist(playlist.id, { videoRefs: updatedVideoRefs });
+        }
+      }
+      
+      // Delete the video from Firestore
+      await deleteVideo(videoToDelete.videoId);
+      
+      // Remove from local state
+      setVideos(prev => prev.filter(v => v.videoId !== videoToDelete.videoId));
+      
+      // Reset modal state
+      setVideoToDelete(null);
+      setVideoUsageInfo(null);
+      setShowDeleteModal(false);
+      
+      alert('Video deleted successfully!');
     } catch (error) {
       console.error('Error deleting video:', error);
+      alert('Error deleting video. Please try again.');
     }
   };
 
@@ -304,6 +342,21 @@ const VideosPage: React.FC = () => {
         onClose={() => setShowTagManager(false)}
         onTagsUpdated={handleTagsUpdated}
       />
+
+      {/* Delete Video Modal */}
+      {videoToDelete && videoUsageInfo && (
+        <DeleteVideoModal
+          video={videoToDelete}
+          usageInfo={videoUsageInfo}
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setVideoToDelete(null);
+            setVideoUsageInfo(null);
+          }}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
   );
 };
