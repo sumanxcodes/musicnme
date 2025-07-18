@@ -171,7 +171,7 @@ const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose, onTagsUpdated 
                       type="text"
                       id="name"
                       {...register('name')}
-                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 ${
                         errors.name ? 'border-red-300' : 'border-gray-300'
                       }`}
                       placeholder="Enter tag name"
@@ -188,7 +188,7 @@ const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose, onTagsUpdated 
                     <select
                       id="category"
                       {...register('category')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                     >
                       <option value="key">Key</option>
                       <option value="tempo">Tempo</option>

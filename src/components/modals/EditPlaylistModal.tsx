@@ -108,7 +108,7 @@ const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
                         type="text"
                         id="title"
                         {...register('title')}
-                        className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                        className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 placeholder-gray-500 ${
                           errors.title ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
                         }`}
                         placeholder="Enter playlist title"
@@ -130,7 +130,7 @@ const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
                         id="notes"
                         rows={3}
                         {...register('notes')}
-                        className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                        className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 placeholder-gray-500 ${
                           errors.notes ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
                         }`}
                         placeholder="Add any notes or description for this playlist"

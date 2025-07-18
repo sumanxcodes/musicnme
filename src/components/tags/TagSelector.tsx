@@ -117,7 +117,7 @@ const TagSelector: React.FC<TagSelectorProps> = ({
           onFocus={() => setShowDropdown(true)}
           placeholder={selectedTags.length >= maxTags ? `Maximum ${maxTags} tags` : placeholder}
           disabled={selectedTags.length >= maxTags}
-          className="w-full border-none outline-none bg-transparent placeholder-gray-400 text-sm disabled:cursor-not-allowed"
+          className="w-full border-none outline-none bg-transparent placeholder-gray-400 text-gray-900 text-sm disabled:cursor-not-allowed"
         />
       </div>
 

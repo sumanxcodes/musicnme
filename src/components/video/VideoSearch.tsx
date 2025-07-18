@@ -98,7 +98,7 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 text-gray-900 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Search videos by title, channel, or tags..."
               />
             </div>
@@ -141,7 +141,7 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
                 <select
                   value={filters.duration}
                   onChange={(e) => handleFilterChange({ duration: e.target.value as SearchFilters['duration'] })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 >
                   <option value="all">All Durations</option>
                   <option value="short">Short (≤3 min)</option>
@@ -156,7 +156,7 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
                 <select
                   value={filters.sortBy}
                   onChange={(e) => handleFilterChange({ sortBy: e.target.value as SearchFilters['sortBy'] })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 >
                   <option value="recent">Most Recent</option>
                   <option value="title">Title</option>
@@ -171,7 +171,7 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
                 <select
                   value={filters.sortOrder}
                   onChange={(e) => handleFilterChange({ sortOrder: e.target.value as SearchFilters['sortOrder'] })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 >
                   <option value="desc">Descending</option>
                   <option value="asc">Ascending</option>
