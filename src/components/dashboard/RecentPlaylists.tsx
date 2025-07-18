@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { getUserPlaylists, getVideo } from '@/lib/firestore';
+import { Playlist, Video } from '@/types';
 
-interface PlaylistItem {
-  id: string;
-  title: string;
-  description: string;
+interface PlaylistWithMetadata extends Playlist {
   videoCount: number;
   totalDuration: string;
   lastUsed: string;
@@ -15,39 +15,150 @@ interface PlaylistItem {
 }
 
 const RecentPlaylists: React.FC = () => {
-  // Mock data - will be replaced with real data from Firestore
-  const recentPlaylists: PlaylistItem[] = [
-    {
-      id: '1',
-      title: 'Morning Warmup',
-      description: 'Perfect for starting the day with energy',
-      videoCount: 8,
-      totalDuration: '24 min',
-      lastUsed: '2 hours ago',
-      thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-      tags: ['warmup', 'energy', 'C major'],
-    },
-    {
-      id: '2',
-      title: 'Color Learning',
-      description: 'Learn colors through music and movement',
-      videoCount: 6,
-      totalDuration: '18 min',
-      lastUsed: '1 day ago',
-      thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-      tags: ['colors', 'learning', 'slow'],
-    },
-    {
-      id: '3',
-      title: 'Rhythm Practice',
-      description: 'Build rhythm skills with fun activities',
-      videoCount: 10,
-      totalDuration: '32 min',
-      lastUsed: '3 days ago',
-      thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-      tags: ['rhythm', 'practice', 'medium'],
-    },
-  ];
+  const { user } = useAuth();
+  const [playlists, setPlaylists] = useState<PlaylistWithMetadata[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      loadRecentPlaylists();
+    }
+  }, [user]);
+
+  const loadRecentPlaylists = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const userPlaylists = await getUserPlaylists(user.uid);
+      
+      // Sort by creation date (most recent first) and take top 3
+      const sortedPlaylists = userPlaylists
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 3);
+      
+      // Enrich playlists with metadata
+      const enrichedPlaylists = await Promise.all(
+        sortedPlaylists.map(async (playlist) => {
+          const videoCount = playlist.videoRefs.length;
+          let totalDuration = '0 min';
+          let thumbnail = '';
+          let tags: string[] = [];
+          
+          if (videoCount > 0) {
+            // Get first video for thumbnail and sample some videos for tags
+            const firstVideo = await getVideo(playlist.videoRefs[0]);
+            if (firstVideo) {
+              thumbnail = firstVideo.thumbnail;
+              tags = firstVideo.tags.slice(0, 3); // Take first 3 tags
+            }
+            
+            // Calculate total duration (simplified - just estimate)
+            const estimatedMinutes = videoCount * 3; // Assume 3 min per video
+            totalDuration = `${estimatedMinutes} min`;
+          }
+          
+          // Calculate "last used" (for now, use created date)
+          const lastUsed = getTimeAgo(playlist.createdAt);
+          
+          return {
+            ...playlist,
+            videoCount,
+            totalDuration,
+            lastUsed,
+            thumbnail,
+            tags
+          };
+        })
+      );
+      
+      setPlaylists(enrichedPlaylists);
+    } catch (err) {
+      console.error('Error loading recent playlists:', err);
+      setError('Failed to load playlists');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getTimeAgo = (dateString: string): string => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} minutes ago`;
+    } else if (diffInMinutes < 1440) {
+      const hours = Math.floor(diffInMinutes / 60);
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+      const days = Math.floor(diffInMinutes / 1440);
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Playlists</h2>
+          <div className="w-24 h-4 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-gray-50 rounded-lg overflow-hidden animate-pulse">
+              <div className="aspect-video bg-gray-200"></div>
+              <div className="p-4">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-full mb-3"></div>
+                <div className="flex justify-between mb-3">
+                  <div className="h-3 bg-gray-200 rounded w-16"></div>
+                  <div className="h-3 bg-gray-200 rounded w-12"></div>
+                  <div className="h-3 bg-gray-200 rounded w-20"></div>
+                </div>
+                <div className="flex gap-1">
+                  <div className="h-5 bg-gray-200 rounded w-12"></div>
+                  <div className="h-5 bg-gray-200 rounded w-16"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Playlists</h2>
+          <Link
+            href="/playlists"
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          >
+            View all playlists →
+          </Link>
+        </div>
+        <div className="text-center py-8">
+          <svg className="w-12 h-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading playlists</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={loadRecentPlaylists}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -61,7 +172,7 @@ const RecentPlaylists: React.FC = () => {
         </Link>
       </div>
 
-      {recentPlaylists.length === 0 ? (
+      {playlists.length === 0 ? (
         <div className="text-center py-12">
           <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
@@ -80,7 +191,7 @@ const RecentPlaylists: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recentPlaylists.map((playlist) => (
+          {playlists.map((playlist) => (
             <Link
               key={playlist.id}
               href={`/playlists/${playlist.id}`}
@@ -107,7 +218,7 @@ const RecentPlaylists: React.FC = () => {
                     {playlist.title}
                   </h3>
                   <p className="text-sm text-gray-600 mb-3">
-                    {playlist.description}
+                    {playlist.notes || 'No description provided'}
                   </p>
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                     <span>{playlist.videoCount} videos</span>

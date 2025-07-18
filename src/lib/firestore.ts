@@ -216,6 +216,34 @@ export const getUserPlaylists = async (userId: string): Promise<Playlist[]> => {
   }
 };
 
+export const getUserVideos = async (userId: string): Promise<Video[]> => {
+  try {
+    const videosRef = collection(db, 'videos');
+    const q = query(
+      videosRef,
+      where('createdBy', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const videos: Video[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      videos.push({
+        videoId: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      } as Video);
+    });
+    
+    return videos;
+  } catch (error) {
+    console.error('Error getting user videos:', error);
+    return [];
+  }
+};
+
 export const updatePlaylist = async (playlistId: string, updates: Partial<Playlist>): Promise<void> => {
   try {
     const playlistRef = doc(db, 'playlists', playlistId);
