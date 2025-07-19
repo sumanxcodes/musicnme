@@ -411,7 +411,6 @@ const VideoPlayer = memo<VideoPlayerProps>(({
                 onVolumeChange={setVolume}
                 onToggleMute={toggleMute}
                 onToggleFullscreen={handleToggleFullscreen}
-                onTogglePictureInPicture={undefined}
                 onSpeedChange={setPlaybackSpeed}
               />
               </div>

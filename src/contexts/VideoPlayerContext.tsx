@@ -27,9 +27,6 @@ interface VideoPlayerState {
   autoplay: boolean;
   loop: boolean;
   shuffle: boolean;
-  
-  // Session persistence
-  sessionId: string | null;
 }
 
 type VideoPlayerAction = 
@@ -46,7 +43,6 @@ type VideoPlayerAction =
   | { type: 'SET_AUTOPLAY'; payload: boolean }
   | { type: 'SET_LOOP'; payload: boolean }
   | { type: 'SET_SHUFFLE'; payload: boolean }
-  | { type: 'SET_SESSION_ID'; payload: string | null }
   | { type: 'NEXT_VIDEO' }
   | { type: 'PREVIOUS_VIDEO' }
   | { type: 'SEEK_TO'; payload: number }
@@ -71,7 +67,6 @@ const initialState: VideoPlayerState = {
   autoplay: false,
   loop: false,
   shuffle: false,
-  sessionId: null,
 };
 
 function videoPlayerReducer(state: VideoPlayerState, action: VideoPlayerAction): VideoPlayerState {
@@ -120,9 +115,6 @@ function videoPlayerReducer(state: VideoPlayerState, action: VideoPlayerAction):
     
     case 'SET_SHUFFLE':
       return { ...state, shuffle: action.payload };
-    
-    case 'SET_SESSION_ID':
-      return { ...state, sessionId: action.payload };
     
     case 'NEXT_VIDEO':
       if (state.videos.length === 0) return state;
@@ -189,8 +181,6 @@ interface VideoPlayerContextType {
   toggleMute: () => void;
   setPlaybackSpeed: (speed: number) => void;
   toggleFullscreen: () => void;
-  startSession: (sessionId: string) => void;
-  endSession: () => void;
   playerRef: React.RefObject<any>;
 }
 
@@ -228,35 +218,6 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     }
     
-    // Check for session restoration
-    const savedSession = localStorage.getItem('videoPlayerSession');
-    if (savedSession) {
-      try {
-        const sessionData = JSON.parse(savedSession);
-        const currentPath = window.location.pathname;
-        
-        // If we're on a session page and have a saved session, restore it
-        if (currentPath.includes('/session/') && sessionData.sessionId) {
-          dispatch({ type: 'SET_SESSION_ID', payload: sessionData.sessionId });
-          
-          // Restore video and playlist state if available
-          if (sessionData.currentVideo) {
-            dispatch({ 
-              type: 'SET_CURRENT_VIDEO', 
-              payload: {
-                video: sessionData.currentVideo,
-                playlist: sessionData.currentPlaylist,
-                videos: sessionData.videos,
-                index: sessionData.currentIndex
-              }
-            });
-            dispatch({ type: 'SET_CURRENT_TIME', payload: sessionData.currentTime || 0 });
-          }
-        }
-      } catch (error) {
-        console.error('Error loading session state:', error);
-      }
-    }
   }, []);
 
   // Save state to localStorage
@@ -272,31 +233,6 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     localStorage.setItem('videoPlayerState', JSON.stringify(stateToSave));
   }, [state.volume, state.isMuted, state.playbackSpeed, state.autoplay, state.loop, state.shuffle]);
 
-  // Save session state to localStorage when session is active (heavily debounced to reduce frequency)
-  useEffect(() => {
-    if (!state.sessionId) return;
-
-    const saveSessionData = () => {
-      try {
-        const sessionData = {
-          sessionId: state.sessionId,
-          currentVideo: state.currentVideo,
-          currentPlaylist: state.currentPlaylist,
-          videos: state.videos,
-          currentIndex: state.currentIndex,
-          currentTime: state.currentTime,
-        };
-        localStorage.setItem('videoPlayerSession', JSON.stringify(sessionData));
-      } catch (error) {
-        console.warn('Error saving session data:', error);
-      }
-    };
-
-    // Heavily debounce localStorage writes to avoid blocking during playback
-    // Only save significant changes (video changes, not time updates) - increased to 10 seconds
-    const timeoutId = setTimeout(saveSessionData, 10000);
-    return () => clearTimeout(timeoutId);
-  }, [state.sessionId, state.currentVideo, state.currentPlaylist, state.videos, state.currentIndex]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -320,8 +256,6 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       });
       cleanupRef.current = [];
-      
-      localStorage.removeItem('videoPlayerSession');
     };
   }, []);
 
@@ -451,35 +385,6 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     dispatch({ type: 'SET_FULLSCREEN', payload: !state.isFullscreen });
   }, [state.isFullscreen]);
 
-  const startSession = useCallback((sessionId: string) => {
-    dispatch({ type: 'SET_SESSION_ID', payload: sessionId });
-  }, []);
-
-  const endSession = useCallback(() => {
-    // Clean up player references
-    if (playerRef.current) {
-      try {
-        playerRef.current.destroy();
-      } catch (error) {
-        console.warn('Error destroying main player:', error);
-      }
-      playerRef.current = null;
-    }
-    
-    // Run any registered cleanup functions
-    cleanupRef.current.forEach(cleanup => {
-      try {
-        cleanup();
-      } catch (error) {
-        console.warn('Error in cleanup function:', error);
-      }
-    });
-    cleanupRef.current = [];
-    
-    dispatch({ type: 'SET_SESSION_ID', payload: null });
-    localStorage.removeItem('videoPlayerSession');
-  }, []);
-
 
   const value: VideoPlayerContextType = {
     state,
@@ -495,8 +400,6 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     toggleMute,
     setPlaybackSpeed,
     toggleFullscreen,
-    startSession,
-    endSession,
     playerRef,
   };
 

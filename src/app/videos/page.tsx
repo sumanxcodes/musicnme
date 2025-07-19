@@ -2,13 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllVideos, checkVideoUsage, deleteVideo, updatePlaylist, updateVideoTags } from '@/lib/firestore';
+import { getAllVideos, checkVideoUsage, deleteVideo, updatePlaylist, updateVideoTags, bulkUpdateVideoTags, bulkDeleteVideos, bulkAddToPlaylists, bulkCheckVideoUsage, exportVideosData } from '@/lib/firestore';
 import { Video, VideoUsageInfo } from '@/types';
 import VideoGrid from '@/components/video/VideoGrid';
 import VideoUploadWizard from '@/components/video/VideoUploadWizard';
 import TagManager from '@/components/tags/TagManager';
 import DeleteVideoModal from '@/components/modals/DeleteVideoModal';
 import VideoTagEditor from '@/components/video/VideoTagEditor';
+import BulkActionsDropdown from '@/components/video/BulkActionsDropdown';
+import BulkDeleteModal from '@/components/video/BulkDeleteModal';
+import BulkTagEditor from '@/components/video/BulkTagEditor';
+import BulkPlaylistSelector from '@/components/video/BulkPlaylistSelector';
 
 const VideosPage: React.FC = () => {
   const { user } = useAuth();
@@ -23,6 +27,11 @@ const VideosPage: React.FC = () => {
   const [videoToEdit, setVideoToEdit] = useState<Video | null>(null);
   const [showVideoTagEditor, setShowVideoTagEditor] = useState(false);
   const [filteredVideos, setFilteredVideos] = useState<Video[]>([]);
+  // Bulk operations state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [showBulkTagEditor, setShowBulkTagEditor] = useState(false);
+  const [showBulkPlaylistSelector, setShowBulkPlaylistSelector] = useState(false);
+  const [bulkOperationInProgress, setBulkOperationInProgress] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFilters, setSearchFilters] = useState({
     tags: [],
@@ -245,6 +254,134 @@ const VideosPage: React.FC = () => {
     }
   };
 
+  // Bulk operations handlers
+  const handleBulkDelete = (videos: Video[]) => {
+    setShowBulkDeleteModal(true);
+  };
+
+  const handleBulkTagEdit = (videos: Video[]) => {
+    setShowBulkTagEditor(true);
+  };
+
+  const handleBulkAddToPlaylist = (videos: Video[]) => {
+    setShowBulkPlaylistSelector(true);
+  };
+
+  const handleBulkExport = async (videos: Video[]) => {
+    try {
+      setBulkOperationInProgress(true);
+      
+      // Ask user for format preference
+      const format = confirm('Export as CSV? (Cancel for JSON)') ? 'csv' : 'json';
+      const data = await exportVideosData(videos, format);
+      
+      // Create and download file
+      const blob = new Blob([data], { 
+        type: format === 'csv' ? 'text/csv' : 'application/json' 
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `videos-export-${new Date().toISOString().split('T')[0]}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      alert(`Successfully exported ${videos.length} videos as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Error exporting videos:', error);
+      alert('Error exporting videos. Please try again.');
+    } finally {
+      setBulkOperationInProgress(false);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedVideos([]);
+  };
+
+  const handleBulkDeleteConfirm = async (videos: Video[], removeFromPlaylists: boolean) => {
+    try {
+      setBulkOperationInProgress(true);
+      
+      await bulkDeleteVideos(videos, removeFromPlaylists, (progress) => {
+        // Progress is handled by the modal component
+      });
+      
+      // Remove deleted videos from local state
+      const deletedVideoIds = new Set(videos.map(v => v.videoId));
+      setVideos(prev => prev.filter(v => !deletedVideoIds.has(v.videoId)));
+      setSelectedVideos([]);
+      setShowBulkDeleteModal(false);
+      
+      alert(`Successfully deleted ${videos.length} video${videos.length !== 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Error in bulk delete:', error);
+      alert('Error deleting videos. Some videos may not have been deleted.');
+    } finally {
+      setBulkOperationInProgress(false);
+    }
+  };
+
+  const handleBulkTagEditApply = async (videos: Video[], operation: any) => {
+    try {
+      setBulkOperationInProgress(true);
+      
+      await bulkUpdateVideoTags(videos, operation, (progress) => {
+        // Progress tracking could be added here
+      });
+      
+      // Refresh videos to get updated tags
+      await loadVideos();
+      setSelectedVideos([]);
+      setShowBulkTagEditor(false);
+      
+      alert(`Successfully updated tags for ${videos.length} video${videos.length !== 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Error in bulk tag edit:', error);
+      alert('Error updating tags. Some videos may not have been updated.');
+    } finally {
+      setBulkOperationInProgress(false);
+    }
+  };
+
+  const handleBulkPlaylistAdd = async (videos: Video[], playlistIds: string[], createNew?: any) => {
+    try {
+      setBulkOperationInProgress(true);
+      
+      const resultPlaylistIds = await bulkAddToPlaylists(
+        videos,
+        playlistIds,
+        createNew,
+        user?.uid,
+        (progress) => {
+          // Progress tracking could be added here
+        }
+      );
+      
+      setSelectedVideos([]);
+      setShowBulkPlaylistSelector(false);
+      
+      const totalPlaylists = resultPlaylistIds.length;
+      alert(`Successfully added ${videos.length} video${videos.length !== 1 ? 's' : ''} to ${totalPlaylists} playlist${totalPlaylists !== 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Error in bulk playlist add:', error);
+      alert('Error adding videos to playlists. Some videos may not have been added.');
+    } finally {
+      setBulkOperationInProgress(false);
+    }
+  };
+
+  const handleBulkCheckUsage = async (videos: Video[]) => {
+    try {
+      return await bulkCheckVideoUsage(videos);
+    } catch (error) {
+      console.error('Error checking video usage:', error);
+      return new Map();
+    }
+  };
+
   const getTotalDuration = () => {
     return videos.reduce((total, video) => {
       try {
@@ -426,35 +563,16 @@ const VideosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Selection Actions */}
-      {selectedVideos.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-sm font-medium text-blue-900">
-                {selectedVideos.length} video{selectedVideos.length !== 1 ? 's' : ''} selected
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setSelectedVideos([])}
-                className="text-sm text-blue-600 hover:text-blue-500"
-              >
-                Clear selection
-              </button>
-              <button
-                onClick={() => alert('Bulk operations coming in Phase 3')}
-                className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200"
-              >
-                Bulk Actions
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bulk Actions Bar */}
+      <BulkActionsDropdown
+        selectedVideos={selectedVideos}
+        onBulkDelete={handleBulkDelete}
+        onBulkTagEdit={handleBulkTagEdit}
+        onBulkAddToPlaylist={handleBulkAddToPlaylist}
+        onBulkExport={handleBulkExport}
+        onClearSelection={handleClearSelection}
+        isOperationInProgress={bulkOperationInProgress}
+      />
 
       {/* Video Upload Wizard Modal */}
       {showUploader && (
@@ -524,6 +642,29 @@ const VideosPage: React.FC = () => {
           onTagsUpdated={handleVideoTagsUpdate}
         />
       )}
+
+      {/* Bulk Operations Modals */}
+      <BulkDeleteModal
+        videos={selectedVideos}
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        onCheckUsage={handleBulkCheckUsage}
+      />
+
+      <BulkTagEditor
+        videos={selectedVideos}
+        isOpen={showBulkTagEditor}
+        onClose={() => setShowBulkTagEditor(false)}
+        onApply={handleBulkTagEditApply}
+      />
+
+      <BulkPlaylistSelector
+        videos={selectedVideos}
+        isOpen={showBulkPlaylistSelector}
+        onClose={() => setShowBulkPlaylistSelector(false)}
+        onApply={handleBulkPlaylistAdd}
+      />
     </div>
   );
 };

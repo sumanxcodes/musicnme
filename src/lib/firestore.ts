@@ -15,7 +15,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Video, Playlist, PlaylistWithVideos } from '@/types';
+import { Video, Playlist, PlaylistWithVideos, VideoUsageInfo } from '@/types';
 
 // Video operations
 export const addVideo = async (video: Omit<Video, 'createdAt'>): Promise<string> => {
@@ -333,5 +333,196 @@ export const updateVideoTags = async (videoId: string, tags: string[]): Promise<
   } catch (error) {
     console.error('Error updating video tags:', error);
     throw error;
+  }
+};
+
+// Bulk operations
+export const bulkUpdateVideoTags = async (
+  videos: Video[],
+  operation: { type: 'add' | 'remove' | 'replace'; tags: string[] },
+  onProgress?: (progress: number) => void
+): Promise<void> => {
+  const batch = videos.map(async (video, index) => {
+    try {
+      let newTags: string[] = [];
+      
+      switch (operation.type) {
+        case 'add':
+          newTags = [...new Set([...video.tags, ...operation.tags])];
+          break;
+        case 'remove':
+          newTags = video.tags.filter(tag => !operation.tags.includes(tag));
+          break;
+        case 'replace':
+          newTags = [...operation.tags];
+          break;
+      }
+      
+      await updateVideoTags(video.videoId, newTags);
+      
+      if (onProgress) {
+        const progress = ((index + 1) / videos.length) * 100;
+        onProgress(progress);
+      }
+    } catch (error) {
+      console.error(`Error updating tags for video ${video.videoId}:`, error);
+      throw error;
+    }
+  });
+  
+  await Promise.all(batch);
+};
+
+export const bulkDeleteVideos = async (
+  videos: Video[],
+  removeFromPlaylists: boolean = false,
+  onProgress?: (progress: number) => void
+): Promise<void> => {
+  for (let i = 0; i < videos.length; i++) {
+    const video = videos[i];
+    
+    try {
+      // Remove from playlists if requested
+      if (removeFromPlaylists) {
+        const usage = await checkVideoUsage(video.videoId);
+        if (usage.isUsed) {
+          for (const playlist of usage.playlists) {
+            const updatedVideoRefs = playlist.videoRefs.filter(ref => ref !== video.videoId);
+            await updatePlaylist(playlist.id, { videoRefs: updatedVideoRefs });
+          }
+        }
+      }
+      
+      // Delete the video
+      await deleteVideo(video.videoId);
+      
+      if (onProgress) {
+        const progress = ((i + 1) / videos.length) * 100;
+        onProgress(progress);
+      }
+    } catch (error) {
+      console.error(`Error deleting video ${video.videoId}:`, error);
+      throw error;
+    }
+  }
+};
+
+export const bulkAddToPlaylists = async (
+  videos: Video[],
+  playlistIds: string[],
+  createNew?: { title: string; description: string },
+  userId?: string,
+  onProgress?: (progress: number) => void
+): Promise<string[]> => {
+  let targetPlaylistIds = [...playlistIds];
+  
+  // Create new playlist if requested
+  if (createNew && userId) {
+    try {
+      const newPlaylistId = await createPlaylist({
+        title: createNew.title,
+        description: createNew.description,
+        userId,
+        videoRefs: [],
+        tags: []
+      });
+      targetPlaylistIds.push(newPlaylistId);
+    } catch (error) {
+      console.error('Error creating new playlist:', error);
+      throw error;
+    }
+  }
+  
+  // Add videos to each playlist
+  for (let i = 0; i < targetPlaylistIds.length; i++) {
+    const playlistId = targetPlaylistIds[i];
+    
+    try {
+      const playlist = await getPlaylist(playlistId);
+      if (!playlist) continue;
+      
+      // Get video IDs that aren't already in the playlist
+      const newVideoIds = videos
+        .map(v => v.videoId)
+        .filter(videoId => !playlist.videoRefs.includes(videoId));
+      
+      if (newVideoIds.length > 0) {
+        const updatedVideoRefs = [...playlist.videoRefs, ...newVideoIds];
+        await updatePlaylist(playlistId, { videoRefs: updatedVideoRefs });
+      }
+      
+      if (onProgress) {
+        const progress = ((i + 1) / targetPlaylistIds.length) * 100;
+        onProgress(progress);
+      }
+    } catch (error) {
+      console.error(`Error adding videos to playlist ${playlistId}:`, error);
+      throw error;
+    }
+  }
+  
+  return targetPlaylistIds;
+};
+
+export const bulkCheckVideoUsage = async (
+  videos: Video[]
+): Promise<Map<string, VideoUsageInfo>> => {
+  const usageMap = new Map<string, VideoUsageInfo>();
+  
+  // Get all playlists first
+  const playlistsRef = collection(db, 'playlists');
+  const playlistsSnapshot = await getDocs(playlistsRef);
+  const allPlaylists = playlistsSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+  })) as Playlist[];
+  
+  // Check usage for each video
+  videos.forEach(video => {
+    const playlistsUsingVideo = allPlaylists.filter(playlist => 
+      playlist.videoRefs.includes(video.videoId)
+    );
+    
+    usageMap.set(video.videoId, {
+      isUsed: playlistsUsingVideo.length > 0,
+      playlists: playlistsUsingVideo
+    });
+  });
+  
+  return usageMap;
+};
+
+export const exportVideosData = async (
+  videos: Video[],
+  format: 'csv' | 'json' = 'json'
+): Promise<string> => {
+  const exportData = videos.map(video => ({
+    videoId: video.videoId,
+    title: video.title,
+    duration: video.duration,
+    channelName: video.channelName,
+    tags: video.tags.join(', '),
+    createdAt: video.createdAt,
+    thumbnail: video.thumbnail
+  }));
+  
+  if (format === 'csv') {
+    const headers = ['Video ID', 'Title', 'Duration', 'Channel', 'Tags', 'Created At', 'Thumbnail URL'];
+    const csvRows = [
+      headers.join(','),
+      ...exportData.map(row => [
+        `"${row.videoId}"`,
+        `"${row.title.replace(/"/g, '""')}"`,
+        `"${row.duration}"`,
+        `"${row.channelName.replace(/"/g, '""')}"`,
+        `"${row.tags.replace(/"/g, '""')}"`,
+        `"${row.createdAt}"`,
+        `"${row.thumbnail}"`
+      ].join(','))
+    ];
+    return csvRows.join('\n');
+  } else {
+    return JSON.stringify(exportData, null, 2);
   }
 };

@@ -9,7 +9,6 @@ import CreatePlaylistModal from '@/components/modals/CreatePlaylistModal';
 import EditPlaylistModal from '@/components/modals/EditPlaylistModal';
 import DeleteConfirmationModal from '@/components/modals/DeleteConfirmationModal';
 import SharePlaylistModal from '@/components/modals/SharePlaylistModal';
-import SessionLauncher from '@/components/session/SessionLauncher';
 
 const PlaylistsPage: React.FC = () => {
   const { user } = useAuth();
@@ -19,7 +18,6 @@ const PlaylistsPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [isSessionLauncherOpen, setIsSessionLauncherOpen] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
 
   useEffect(() => {
@@ -81,8 +79,8 @@ const PlaylistsPage: React.FC = () => {
   };
 
   const handlePlaylistPlay = (playlist: Playlist) => {
-    setSelectedPlaylist(playlist);
-    setIsSessionLauncherOpen(true);
+    // Navigate directly to playlist player
+    window.location.href = `/playlists/${playlist.id}/play`;
   };
 
   const handlePlaylistView = (playlist: Playlist) => {
@@ -100,7 +98,6 @@ const PlaylistsPage: React.FC = () => {
     setIsEditModalOpen(false);
     setIsDeleteModalOpen(false);
     setIsShareModalOpen(false);
-    setIsSessionLauncherOpen(false);
     setSelectedPlaylist(null);
   };
 
@@ -219,13 +216,6 @@ const PlaylistsPage: React.FC = () => {
       
       {selectedPlaylist && isShareModalOpen && (
         <SharePlaylistModal
-          playlist={selectedPlaylist}
-          onClose={handleCloseModals}
-        />
-      )}
-      
-      {selectedPlaylist && isSessionLauncherOpen && (
-        <SessionLauncher
           playlist={selectedPlaylist}
           onClose={handleCloseModals}
         />
