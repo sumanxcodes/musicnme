@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllTags } from '@/lib/tags';
 import { Tag } from '@/types';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface VideoSearchProps {
   onSearch: (query: string, filters: SearchFilters) => void;
@@ -32,10 +33,21 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
   const [showFilters, setShowFilters] = useState(false);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  const debouncedQuery = useDebounce(query, 300);
 
   useEffect(() => {
     loadTags();
   }, []);
+
+  useEffect(() => {
+    if (debouncedQuery !== initialQuery || debouncedQuery !== '') {
+      setIsSearching(true);
+      onSearch(debouncedQuery, filters);
+      setIsSearching(false);
+    }
+  }, [debouncedQuery, filters]);
 
   const loadTags = async () => {
     setIsLoadingTags(true);
@@ -50,13 +62,17 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
   };
 
   const handleSearch = () => {
+    setIsSearching(true);
     onSearch(query, filters);
+    setTimeout(() => setIsSearching(false), 100);
   };
 
   const handleFilterChange = (newFilters: Partial<SearchFilters>) => {
     const updatedFilters = { ...filters, ...newFilters };
     setFilters(updatedFilters);
+    setIsSearching(true);
     onSearch(query, updatedFilters);
+    setTimeout(() => setIsSearching(false), 100);
   };
 
   const handleTagToggle = (tagName: string) => {
@@ -89,9 +105,16 @@ const VideoSearch: React.FC<VideoSearchProps> = ({
           <div className="flex-1">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                {isSearching ? (
+                  <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                )}
               </div>
               <input
                 type="text"

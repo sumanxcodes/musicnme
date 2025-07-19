@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 
 interface PlayerControlsProps {
   isPlaying: boolean;
   volume: number;
   isMuted: boolean;
   isFullscreen: boolean;
-  isPictureInPicture: boolean;
   playbackSpeed: number;
   onPlayPause: () => void;
   onPreviousVideo: () => void;
@@ -17,17 +16,15 @@ interface PlayerControlsProps {
   onVolumeChange: (volume: number) => void;
   onToggleMute: () => void;
   onToggleFullscreen: () => void;
-  onTogglePictureInPicture: () => void;
   onSpeedChange: (speed: number) => void;
   className?: string;
 }
 
-const PlayerControls: React.FC<PlayerControlsProps> = ({
+const PlayerControls = memo<PlayerControlsProps>(({
   isPlaying,
   volume,
   isMuted,
   isFullscreen,
-  isPictureInPicture,
   playbackSpeed,
   onPlayPause,
   onPreviousVideo,
@@ -37,7 +34,6 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onVolumeChange,
   onToggleMute,
   onToggleFullscreen,
-  onTogglePictureInPicture,
   onSpeedChange,
   className = ''
 }) => {
@@ -211,18 +207,6 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         )}
       </div>
 
-      {/* Picture-in-Picture */}
-      <button
-        onClick={onTogglePictureInPicture}
-        className={`p-2 text-white hover:bg-white/20 rounded-lg transition-colors ${
-          isPictureInPicture ? 'bg-white/20' : ''
-        }`}
-        aria-label="Picture-in-picture"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2M7 4h10M7 4l-4 4v12a1 1 0 001 1h16a1 1 0 001-1V8l-4-4M11 16h2v2h-2v-2z" />
-        </svg>
-      </button>
 
       {/* Fullscreen */}
       <button
@@ -238,6 +222,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
       </button>
     </div>
   );
-};
+});
+
+PlayerControls.displayName = 'PlayerControls';
 
 export default PlayerControls;

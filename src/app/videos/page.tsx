@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllVideos, checkVideoUsage, deleteVideo, updatePlaylist } from '@/lib/firestore';
+import { getAllVideos, checkVideoUsage, deleteVideo, updatePlaylist, updateVideoTags } from '@/lib/firestore';
 import { Video, VideoUsageInfo } from '@/types';
 import VideoGrid from '@/components/video/VideoGrid';
-import VideoUploader from '@/components/video/VideoUploader';
+import VideoUploadWizard from '@/components/video/VideoUploadWizard';
 import TagManager from '@/components/tags/TagManager';
 import DeleteVideoModal from '@/components/modals/DeleteVideoModal';
+import VideoTagEditor from '@/components/video/VideoTagEditor';
 
 const VideosPage: React.FC = () => {
   const { user } = useAuth();
@@ -19,12 +20,26 @@ const VideosPage: React.FC = () => {
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [videoUsageInfo, setVideoUsageInfo] = useState<VideoUsageInfo | null>(null);
   const [selectedVideos, setSelectedVideos] = useState<Video[]>([]);
+  const [videoToEdit, setVideoToEdit] = useState<Video | null>(null);
+  const [showVideoTagEditor, setShowVideoTagEditor] = useState(false);
+  const [filteredVideos, setFilteredVideos] = useState<Video[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] = useState({
+    tags: [],
+    duration: 'all',
+    sortBy: 'recent',
+    sortOrder: 'desc'
+  });
 
   useEffect(() => {
     if (user) {
       loadVideos();
     }
   }, [user]);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [videos, searchQuery, searchFilters]);
 
   const loadVideos = async () => {
     if (!user) return;
@@ -71,8 +86,8 @@ const VideosPage: React.FC = () => {
   };
 
   const handleVideoEdit = (video: Video) => {
-    // For now, just show tag manager
-    setShowTagManager(true);
+    setVideoToEdit(video);
+    setShowVideoTagEditor(true);
   };
 
   const handleVideoDelete = async (video: Video) => {
@@ -127,15 +142,107 @@ const VideosPage: React.FC = () => {
     alert(`Add "${video.title}" to playlist - This feature will be implemented in Phase 3`);
   };
 
+  const applyFiltersAndSort = () => {
+    let filtered = [...videos];
+
+    // Apply text search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(video => 
+        video.title.toLowerCase().includes(query) ||
+        video.channelName.toLowerCase().includes(query) ||
+        video.tags.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply tag filters
+    if (searchFilters.tags && searchFilters.tags.length > 0) {
+      filtered = filtered.filter(video => 
+        searchFilters.tags.some((tag: string) => video.tags.includes(tag))
+      );
+    }
+
+    // Apply duration filter
+    if (searchFilters.duration !== 'all') {
+      filtered = filtered.filter(video => {
+        const duration = video.duration;
+        const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (match) {
+          const totalMinutes = (parseInt(match[1] || '0') * 60) + parseInt(match[2] || '0');
+          switch (searchFilters.duration) {
+            case 'short': return totalMinutes <= 3;
+            case 'medium': return totalMinutes > 3 && totalMinutes <= 10;
+            case 'long': return totalMinutes > 10;
+            default: return true;
+          }
+        }
+        return true;
+      });
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (searchFilters.sortBy) {
+        case 'title':
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case 'channel':
+          comparison = a.channelName.localeCompare(b.channelName);
+          break;
+        case 'duration':
+          const getDurationInSeconds = (duration: string) => {
+            const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+            if (match) {
+              const hours = parseInt(match[1] || '0');
+              const minutes = parseInt(match[2] || '0');
+              const seconds = parseInt(match[3] || '0');
+              return (hours * 3600) + (minutes * 60) + seconds;
+            }
+            return 0;
+          };
+          comparison = getDurationInSeconds(a.duration) - getDurationInSeconds(b.duration);
+          break;
+        case 'recent':
+        default:
+          comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          break;
+      }
+
+      return searchFilters.sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    setFilteredVideos(filtered);
+  };
+
   const handleSearch = (query: string, filters: any) => {
-    // This would typically filter the videos based on the query and filters
-    // For now, the VideoGrid handles basic client-side filtering
-    console.log('Search:', query, filters);
+    setSearchQuery(query);
+    setSearchFilters(filters);
   };
 
   const handleTagsUpdated = () => {
     // Refresh any tag-related data
     loadVideos();
+  };
+
+  const handleVideoTagsUpdate = async (videoId: string, tags: string[]) => {
+    try {
+      await updateVideoTags(videoId, tags);
+      
+      // Update local state
+      setVideos(prev => prev.map(video => 
+        video.videoId === videoId 
+          ? { ...video, tags }
+          : video
+      ));
+      
+      setShowVideoTagEditor(false);
+      setVideoToEdit(null);
+    } catch (error) {
+      console.error('Error updating video tags:', error);
+      throw error;
+    }
   };
 
   const getTotalDuration = () => {
@@ -210,6 +317,53 @@ const VideosPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Search Results Info */}
+      {!isLoading && (searchQuery || searchFilters.tags.length > 0 || searchFilters.duration !== 'all') && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span className="text-sm font-medium text-blue-900">
+                Showing {filteredVideos.length} of {videos.length} videos
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSearchFilters({
+                  tags: [],
+                  duration: 'all',
+                  sortBy: 'recent',
+                  sortOrder: 'desc'
+                });
+              }}
+              className="text-sm text-blue-600 hover:text-blue-500 font-medium"
+            >
+              Clear filters
+            </button>
+          </div>
+          {searchQuery && (
+            <p className="text-sm text-blue-700 mt-1">
+              Search: &quot;{searchQuery}&quot;
+            </p>
+          )}
+          {searchFilters.tags.length > 0 && (
+            <div className="flex items-center mt-2">
+              <span className="text-sm text-blue-700 mr-2">Tags:</span>
+              <div className="flex flex-wrap gap-1">
+                {searchFilters.tags.map((tag: string) => (
+                  <span key={tag} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick Stats */}
       {!isLoading && videos.length > 0 && (
@@ -302,13 +456,13 @@ const VideosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Video Uploader Modal */}
+      {/* Video Upload Wizard Modal */}
       {showUploader && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-start justify-center min-h-screen pt-8 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowUploader(false)}></div>
-            <div className="inline-block align-middle bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <VideoUploader
+            <div className="inline-block align-top bg-white rounded-lg text-left shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+              <VideoUploadWizard
                 onVideoAdded={handleVideoAdded}
                 onClose={() => setShowUploader(false)}
               />
@@ -319,7 +473,7 @@ const VideosPage: React.FC = () => {
 
       {/* Videos Grid */}
       <VideoGrid
-        videos={videos}
+        videos={filteredVideos}
         isLoading={isLoading}
         onVideoSelect={handleVideoSelect}
         onVideoEdit={handleVideoEdit}
@@ -328,7 +482,7 @@ const VideosPage: React.FC = () => {
         selectedVideos={selectedVideos}
         showSearch={true}
         onSearch={handleSearch}
-        emptyMessage="No videos in your library yet"
+        emptyMessage={searchQuery || searchFilters.tags.length > 0 || searchFilters.duration !== 'all' ? "No videos match your search criteria" : "No videos in your library yet"}
         emptyIcon={
           <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -355,6 +509,19 @@ const VideosPage: React.FC = () => {
             setVideoUsageInfo(null);
           }}
           onConfirm={handleConfirmDelete}
+        />
+      )}
+
+      {/* Video Tag Editor Modal */}
+      {videoToEdit && (
+        <VideoTagEditor
+          video={videoToEdit}
+          isOpen={showVideoTagEditor}
+          onClose={() => {
+            setShowVideoTagEditor(false);
+            setVideoToEdit(null);
+          }}
+          onTagsUpdated={handleVideoTagsUpdate}
         />
       )}
     </div>

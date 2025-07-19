@@ -323,3 +323,15 @@ export const checkVideoUsage = async (videoId: string): Promise<{
     };
   }
 };
+
+export const updateVideoTags = async (videoId: string, tags: string[]): Promise<void> => {
+  try {
+    const videoRef = doc(db, 'videos', videoId);
+    await updateDoc(videoRef, {
+      tags: tags
+    });
+  } catch (error) {
+    console.error('Error updating video tags:', error);
+    throw error;
+  }
+};

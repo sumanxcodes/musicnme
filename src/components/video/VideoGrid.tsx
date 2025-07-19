@@ -35,57 +35,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   emptyIcon,
 }) => {
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredVideos, setFilteredVideos] = useState<Video[]>(videos);
-
-  useEffect(() => {
-    setFilteredVideos(videos);
-  }, [videos]);
-
   const handleSearch = (query: string, filters: any) => {
-    setSearchQuery(query);
-    
     if (onSearch) {
       onSearch(query, filters);
-      return;
     }
-    
-    // Default client-side filtering
-    let filtered = videos;
-    
-    if (query) {
-      filtered = filtered.filter(video => 
-        video.title.toLowerCase().includes(query.toLowerCase()) ||
-        video.channelName.toLowerCase().includes(query.toLowerCase()) ||
-        video.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-      );
-    }
-    
-    if (filters.tags && filters.tags.length > 0) {
-      filtered = filtered.filter(video => 
-        filters.tags.some((tag: string) => video.tags.includes(tag))
-      );
-    }
-    
-    if (filters.duration && filters.duration !== 'all') {
-      filtered = filtered.filter(video => {
-        const duration = video.duration;
-        // This is a simplified duration check - you might want to improve this
-        const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-        if (match) {
-          const totalMinutes = (parseInt(match[1] || '0') * 60) + parseInt(match[2] || '0');
-          switch (filters.duration) {
-            case 'short': return totalMinutes <= 3;
-            case 'medium': return totalMinutes > 3 && totalMinutes <= 10;
-            case 'long': return totalMinutes > 10;
-            default: return true;
-          }
-        }
-        return true;
-      });
-    }
-    
-    setFilteredVideos(filtered);
   };
 
   const isVideoSelected = (video: Video) => {
@@ -126,7 +79,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
         <VideoSearch onSearch={handleSearch} />
       )}
       
-      {filteredVideos.length === 0 ? (
+      {videos.length === 0 ? (
         <div className="text-center py-12">
           <div className="mx-auto w-12 h-12 text-gray-400 mb-4">
             {emptyIcon || (
@@ -138,27 +91,12 @@ const VideoGrid: React.FC<VideoGridProps> = ({
           <h3 className="text-sm font-medium text-gray-900 mb-2">
             {emptyMessage}
           </h3>
-          {searchQuery && (
-            <p className="text-sm text-gray-500 mb-4">
-              No videos found matching &ldquo;{searchQuery}&rdquo;
-            </p>
-          )}
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setFilteredVideos(videos);
-            }}
-            className="text-sm text-blue-600 hover:text-blue-500"
-          >
-            Clear search
-          </button>
         </div>
       ) : (
         <>
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">
-              {filteredVideos.length} video{filteredVideos.length !== 1 ? 's' : ''}
-              {searchQuery && ` matching ${searchQuery}`}
+              {videos.length} video{videos.length !== 1 ? 's' : ''}
             </p>
             
             {selectedVideos.length > 0 && (
@@ -172,7 +110,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredVideos
+            {videos
               .filter((video, index, self) => 
                 index === self.findIndex(v => v.videoId === video.videoId)
               )

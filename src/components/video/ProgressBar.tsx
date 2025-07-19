@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 
 interface ProgressBarProps {
   currentTime: number;
@@ -10,7 +10,7 @@ interface ProgressBarProps {
   className?: string;
 }
 
-const ProgressBar: React.FC<ProgressBarProps> = ({
+const ProgressBar = memo<ProgressBarProps>(({
   currentTime,
   duration,
   onSeek,
@@ -133,6 +133,21 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  // Only re-render if time difference is significant or other props changed
+  const timeDiff = Math.abs(nextProps.currentTime - prevProps.currentTime);
+  const durationDiff = Math.abs(nextProps.duration - prevProps.duration);
+  
+  return (
+    timeDiff < 10 && // Only re-render if time changed by more than 10 seconds
+    durationDiff < 1 && // Only re-render if duration changed by more than 1 second
+    nextProps.buffered === prevProps.buffered &&
+    nextProps.className === prevProps.className &&
+    nextProps.onSeek === prevProps.onSeek
+  );
+});
+
+ProgressBar.displayName = 'ProgressBar';
 
 export default ProgressBar;

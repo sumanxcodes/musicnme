@@ -21,13 +21,15 @@ interface VideoPlayerState {
   
   // UI state
   isFullscreen: boolean;
-  isPictureInPicture: boolean;
   showControls: boolean;
   
   // Settings
   autoplay: boolean;
   loop: boolean;
   shuffle: boolean;
+  
+  // Session persistence
+  sessionId: string | null;
 }
 
 type VideoPlayerAction = 
@@ -40,11 +42,11 @@ type VideoPlayerAction =
   | { type: 'SET_PLAYBACK_SPEED'; payload: number }
   | { type: 'SET_BUFFERED'; payload: number }
   | { type: 'SET_FULLSCREEN'; payload: boolean }
-  | { type: 'SET_PICTURE_IN_PICTURE'; payload: boolean }
   | { type: 'SET_SHOW_CONTROLS'; payload: boolean }
   | { type: 'SET_AUTOPLAY'; payload: boolean }
   | { type: 'SET_LOOP'; payload: boolean }
   | { type: 'SET_SHUFFLE'; payload: boolean }
+  | { type: 'SET_SESSION_ID'; payload: string | null }
   | { type: 'NEXT_VIDEO' }
   | { type: 'PREVIOUS_VIDEO' }
   | { type: 'SEEK_TO'; payload: number }
@@ -65,11 +67,11 @@ const initialState: VideoPlayerState = {
   playbackSpeed: 1,
   buffered: 0,
   isFullscreen: false,
-  isPictureInPicture: false,
   showControls: true,
   autoplay: false,
   loop: false,
   shuffle: false,
+  sessionId: null,
 };
 
 function videoPlayerReducer(state: VideoPlayerState, action: VideoPlayerAction): VideoPlayerState {
@@ -107,9 +109,6 @@ function videoPlayerReducer(state: VideoPlayerState, action: VideoPlayerAction):
     case 'SET_FULLSCREEN':
       return { ...state, isFullscreen: action.payload };
     
-    case 'SET_PICTURE_IN_PICTURE':
-      return { ...state, isPictureInPicture: action.payload };
-    
     case 'SET_SHOW_CONTROLS':
       return { ...state, showControls: action.payload };
     
@@ -121,6 +120,9 @@ function videoPlayerReducer(state: VideoPlayerState, action: VideoPlayerAction):
     
     case 'SET_SHUFFLE':
       return { ...state, shuffle: action.payload };
+    
+    case 'SET_SESSION_ID':
+      return { ...state, sessionId: action.payload };
     
     case 'NEXT_VIDEO':
       if (state.videos.length === 0) return state;
@@ -187,7 +189,8 @@ interface VideoPlayerContextType {
   toggleMute: () => void;
   setPlaybackSpeed: (speed: number) => void;
   toggleFullscreen: () => void;
-  togglePictureInPicture: () => void;
+  startSession: (sessionId: string) => void;
+  endSession: () => void;
   playerRef: React.RefObject<any>;
 }
 
@@ -204,6 +207,8 @@ export const useVideoPlayer = () => {
 export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(videoPlayerReducer, initialState);
   const playerRef = useRef<any>(null);
+  const cleanupRef = useRef<(() => void)[]>([]);
+  
 
   // Load saved state from localStorage
   useEffect(() => {
@@ -222,6 +227,36 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         console.error('Error loading video player state:', error);
       }
     }
+    
+    // Check for session restoration
+    const savedSession = localStorage.getItem('videoPlayerSession');
+    if (savedSession) {
+      try {
+        const sessionData = JSON.parse(savedSession);
+        const currentPath = window.location.pathname;
+        
+        // If we're on a session page and have a saved session, restore it
+        if (currentPath.includes('/session/') && sessionData.sessionId) {
+          dispatch({ type: 'SET_SESSION_ID', payload: sessionData.sessionId });
+          
+          // Restore video and playlist state if available
+          if (sessionData.currentVideo) {
+            dispatch({ 
+              type: 'SET_CURRENT_VIDEO', 
+              payload: {
+                video: sessionData.currentVideo,
+                playlist: sessionData.currentPlaylist,
+                videos: sessionData.videos,
+                index: sessionData.currentIndex
+              }
+            });
+            dispatch({ type: 'SET_CURRENT_TIME', payload: sessionData.currentTime || 0 });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading session state:', error);
+      }
+    }
   }, []);
 
   // Save state to localStorage
@@ -237,6 +272,59 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     localStorage.setItem('videoPlayerState', JSON.stringify(stateToSave));
   }, [state.volume, state.isMuted, state.playbackSpeed, state.autoplay, state.loop, state.shuffle]);
 
+  // Save session state to localStorage when session is active (heavily debounced to reduce frequency)
+  useEffect(() => {
+    if (!state.sessionId) return;
+
+    const saveSessionData = () => {
+      try {
+        const sessionData = {
+          sessionId: state.sessionId,
+          currentVideo: state.currentVideo,
+          currentPlaylist: state.currentPlaylist,
+          videos: state.videos,
+          currentIndex: state.currentIndex,
+          currentTime: state.currentTime,
+        };
+        localStorage.setItem('videoPlayerSession', JSON.stringify(sessionData));
+      } catch (error) {
+        console.warn('Error saving session data:', error);
+      }
+    };
+
+    // Heavily debounce localStorage writes to avoid blocking during playback
+    // Only save significant changes (video changes, not time updates) - increased to 10 seconds
+    const timeoutId = setTimeout(saveSessionData, 10000);
+    return () => clearTimeout(timeoutId);
+  }, [state.sessionId, state.currentVideo, state.currentPlaylist, state.videos, state.currentIndex]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up player references
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch (error) {
+          console.warn('Error destroying main player:', error);
+        }
+        playerRef.current = null;
+      }
+      
+      // Run any registered cleanup functions
+      cleanupRef.current.forEach(cleanup => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('Error in cleanup function:', error);
+        }
+      });
+      cleanupRef.current = [];
+      
+      localStorage.removeItem('videoPlayerSession');
+    };
+  }, []);
+
   // Convenience methods
   const playVideo = useCallback((video: Video, playlist?: Playlist, videos?: Video[], index?: number) => {
     dispatch({ 
@@ -247,18 +335,55 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const togglePlayPause = useCallback(() => {
     if (playerRef.current) {
-      const playerState = playerRef.current.getPlayerState();
-      if (playerState === 1) { // Playing
-        playerRef.current.pauseVideo();
-      } else {
-        playerRef.current.playVideo();
+      try {
+        // Check if player methods exist
+        if (typeof playerRef.current.getPlayerState !== 'function' || 
+            typeof playerRef.current.playVideo !== 'function' || 
+            typeof playerRef.current.pauseVideo !== 'function') {
+          console.warn('Player methods not available, skipping toggle');
+          return;
+        }
+        
+        const currentPlayerState = playerRef.current.getPlayerState();
+        
+        // Validate player state before proceeding
+        if (currentPlayerState === undefined || currentPlayerState === null) {
+          console.warn('Player state is undefined, skipping toggle');
+          return;
+        }
+        
+        // Determine the action based on current state
+        const shouldPlay = currentPlayerState !== 1; // Not playing
+        
+        if (shouldPlay) {
+          playerRef.current.playVideo();
+          dispatch({ type: 'SET_PLAYING', payload: true });
+        } else {
+          playerRef.current.pauseVideo();
+          dispatch({ type: 'SET_PLAYING', payload: false });
+        }
+      } catch (error) {
+        console.warn('Error toggling play/pause:', error);
+        // Fallback: toggle based on current state
+        dispatch({ type: 'SET_PLAYING', payload: !state.isPlaying });
       }
     }
-  }, []);
+  }, [state.isPlaying]);
 
   const seekTo = useCallback((time: number) => {
     if (playerRef.current) {
-      playerRef.current.seekTo(time);
+      try {
+        // Check if player is ready and has the seekTo method
+        if (typeof playerRef.current.seekTo === 'function') {
+          // Additional safety check - make sure the player is in a valid state
+          const playerState = playerRef.current.getPlayerState();
+          if (playerState !== undefined && playerState !== null) {
+            playerRef.current.seekTo(time);
+          }
+        }
+      } catch (error) {
+        console.error('Error seeking:', error);
+      }
     }
     dispatch({ type: 'SEEK_TO', payload: time });
   }, []);
@@ -283,17 +408,27 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setVolume = useCallback((volume: number) => {
     if (playerRef.current) {
-      playerRef.current.setVolume(volume * 100);
+      try {
+        if (typeof playerRef.current.setVolume === 'function') {
+          playerRef.current.setVolume(volume * 100);
+        }
+      } catch (error) {
+        console.warn('Error setting volume:', error);
+      }
     }
     dispatch({ type: 'SET_VOLUME', payload: volume });
   }, []);
 
   const toggleMute = useCallback(() => {
     if (playerRef.current) {
-      if (state.isMuted) {
-        playerRef.current.unMute();
-      } else {
-        playerRef.current.mute();
+      try {
+        if (state.isMuted && typeof playerRef.current.unMute === 'function') {
+          playerRef.current.unMute();
+        } else if (!state.isMuted && typeof playerRef.current.mute === 'function') {
+          playerRef.current.mute();
+        }
+      } catch (error) {
+        console.warn('Error toggling mute:', error);
       }
     }
     dispatch({ type: 'SET_MUTED', payload: !state.isMuted });
@@ -301,7 +436,13 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setPlaybackSpeed = useCallback((speed: number) => {
     if (playerRef.current) {
-      playerRef.current.setPlaybackRate(speed);
+      try {
+        if (typeof playerRef.current.setPlaybackRate === 'function') {
+          playerRef.current.setPlaybackRate(speed);
+        }
+      } catch (error) {
+        console.warn('Error setting playback speed:', error);
+      }
     }
     dispatch({ type: 'SET_PLAYBACK_SPEED', payload: speed });
   }, []);
@@ -310,9 +451,35 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     dispatch({ type: 'SET_FULLSCREEN', payload: !state.isFullscreen });
   }, [state.isFullscreen]);
 
-  const togglePictureInPicture = useCallback(() => {
-    dispatch({ type: 'SET_PICTURE_IN_PICTURE', payload: !state.isPictureInPicture });
-  }, [state.isPictureInPicture]);
+  const startSession = useCallback((sessionId: string) => {
+    dispatch({ type: 'SET_SESSION_ID', payload: sessionId });
+  }, []);
+
+  const endSession = useCallback(() => {
+    // Clean up player references
+    if (playerRef.current) {
+      try {
+        playerRef.current.destroy();
+      } catch (error) {
+        console.warn('Error destroying main player:', error);
+      }
+      playerRef.current = null;
+    }
+    
+    // Run any registered cleanup functions
+    cleanupRef.current.forEach(cleanup => {
+      try {
+        cleanup();
+      } catch (error) {
+        console.warn('Error in cleanup function:', error);
+      }
+    });
+    cleanupRef.current = [];
+    
+    dispatch({ type: 'SET_SESSION_ID', payload: null });
+    localStorage.removeItem('videoPlayerSession');
+  }, []);
+
 
   const value: VideoPlayerContextType = {
     state,
@@ -328,7 +495,8 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     toggleMute,
     setPlaybackSpeed,
     toggleFullscreen,
-    togglePictureInPicture,
+    startSession,
+    endSession,
     playerRef,
   };
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Playlist, Video } from '@/types';
 import { getPlaylist, getVideo } from '@/lib/firestore';
+import { durationToSeconds } from '@/lib/youtube';
 
 interface SessionLauncherProps {
   playlist: Playlist;
@@ -91,11 +92,12 @@ const SessionLauncher: React.FC<SessionLauncherProps> = ({ playlist, onClose }) 
 
   const calculateTotalDuration = (): number => {
     return videos.reduce((total, video) => {
-      // Parse duration string like "3:45" to seconds
-      const parts = video.duration.split(':');
-      const minutes = parseInt(parts[0] || '0');
-      const seconds = parseInt(parts[1] || '0');
-      return total + (minutes * 60) + seconds;
+      try {
+        return total + durationToSeconds(video.duration);
+      } catch (error) {
+        console.error('Error parsing duration for video:', video.videoId, video.duration);
+        return total;
+      }
     }, 0);
   };
 

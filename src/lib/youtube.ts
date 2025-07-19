@@ -68,6 +68,32 @@ export const formatDuration = (duration: string): string => {
   }
 };
 
+// Convert duration string (ISO 8601 or MM:SS format) to seconds
+export const durationToSeconds = (duration: string): number => {
+  // Handle ISO 8601 format (PT3M45S)
+  const isoMatch = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (isoMatch) {
+    const hours = parseInt(isoMatch[1] || '0');
+    const minutes = parseInt(isoMatch[2] || '0');
+    const seconds = parseInt(isoMatch[3] || '0');
+    return (hours * 3600) + (minutes * 60) + seconds;
+  }
+  
+  // Handle MM:SS or H:MM:SS format
+  const parts = duration.split(':').map(part => parseInt(part) || 0);
+  if (parts.length === 2) {
+    // MM:SS
+    return (parts[0] * 60) + parts[1];
+  } else if (parts.length === 3) {
+    // H:MM:SS
+    return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+  }
+  
+  // Fallback: try to parse as number of seconds
+  const numericDuration = parseInt(duration);
+  return isNaN(numericDuration) ? 0 : numericDuration;
+};
+
 // Fetch video metadata from YouTube API
 export const fetchVideoMetadata = async (videoId: string): Promise<ProcessedVideoData | null> => {
   try {

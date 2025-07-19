@@ -3,12 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import YouTube, { YouTubeProps } from 'react-youtube';
 import { useVideoPlayer } from '@/contexts/VideoPlayerContext';
-import { useCustomFullscreen } from '@/lib/fullscreen';
 import { Video, Playlist } from '@/types';
-import ProgressBar from './ProgressBar';
 import PlayerControls from './PlayerControls';
+import ProgressBar from './ProgressBar';
 
-interface EnhancedVideoPlayerProps {
+interface VideoPlayerProps {
   videoId: string;
   playlist?: Playlist;
   videos?: Video[];
@@ -22,7 +21,7 @@ interface EnhancedVideoPlayerProps {
   onError?: (error: any) => void;
 }
 
-const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
+const VideoPlayer = memo<VideoPlayerProps>(({
   videoId,
   playlist,
   videos = [],
@@ -51,11 +50,12 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
     playerRef 
   } = useVideoPlayer();
 
-  const { isFullscreen, toggleFullscreen: toggleCustomFullscreen } = useCustomFullscreen();
   const [showControls, setShowControls] = useState(true);
   const [isHoveringControls, setIsHoveringControls] = useState(false);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // Update video player context when props change
   useEffect(() => {
@@ -105,12 +105,12 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
       case 'f':
       case 'F':
         e.preventDefault();
-        toggleFullscreen();
+        handleToggleFullscreen();
         break;
       case 'Escape':
         e.preventDefault();
         if (state.isFullscreen) {
-          toggleFullscreen();
+          handleToggleFullscreen();
         }
         break;
       default:
@@ -128,7 +128,6 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
     setVolume,
     toggleMute,
     seekTo,
-    toggleFullscreen,
     state.volume,
     state.duration,
     state.isFullscreen,
@@ -150,7 +149,7 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
         if (state.isPlaying && !isHoveringControls) {
           setShowControls(false);
         }
-      }, 8000);
+      }, 3000);
     } else if (!state.isPlaying && !showControls) {
       setShowControls(true);
     }
@@ -160,15 +159,12 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
         clearTimeout(controlsTimeoutRef.current);
       }
     };
-  }, [state.isPlaying, isHoveringControls]);
+  }, [state.isPlaying, isHoveringControls, showControls]);
 
-  // Update time and duration - minimal impact
+  // Update time and duration
   useEffect(() => {
     if (!playerRef.current || !state.isPlaying) return;
 
-    let lastTime = -1;
-    let lastDuration = -1;
-    
     const updateTime = () => {
       if (playerRef.current) {
         try {
@@ -176,15 +172,8 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
           const duration = playerRef.current.getDuration();
           
           if (currentTime >= 0 && duration > 0) {
-            if (Math.abs(currentTime - lastTime) > 5) {
-              dispatch({ type: 'SET_CURRENT_TIME', payload: currentTime });
-              lastTime = currentTime;
-            }
-            
-            if (lastDuration === -1 && duration > 0) {
-              dispatch({ type: 'SET_DURATION', payload: duration });
-              lastDuration = duration;
-            }
+            dispatch({ type: 'SET_CURRENT_TIME', payload: currentTime });
+            dispatch({ type: 'SET_DURATION', payload: duration });
           }
         } catch (error) {
           console.warn('Error updating time:', error);
@@ -192,37 +181,44 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
       }
     };
 
-    const interval = setInterval(updateTime, 10000);
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, [state.isPlaying, dispatch]);
 
-  // Cleanup effect
-  useEffect(() => {
-    return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
+  // Handle fullscreen toggle - Industry standard approach (YouTube/Netflix pattern)
+  const handleToggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return;
+
+    try {
+      // Check actual DOM state instead of React state for reliability
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      
+      if (!isCurrentlyFullscreen) {
+        // Enter fullscreen
+        containerRef.current.requestFullscreen?.();
+      } else {
+        // Exit fullscreen - only if document is actually in fullscreen
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.();
+        }
       }
-    };
+    } catch (error) {
+      console.warn('Fullscreen operation failed:', error);
+      // Fallback: just update the state if API fails
+      dispatch({ type: 'SET_FULLSCREEN', payload: !state.isFullscreen });
+    }
   }, []);
 
-  // Handle fullscreen toggle
-  const handleToggleFullscreen = useCallback(() => {
-    if (containerRef.current) {
-      toggleCustomFullscreen(containerRef.current, {
-        hideUI: true,
-        backgroundColor: '#000',
-        zIndex: 9999,
-      });
-    }
-    toggleFullscreen();
-    
-    requestAnimationFrame(() => {
-      if (playerRef.current) {
-        window.dispatchEvent(new Event('resize'));
-      }
-    });
-  }, [toggleCustomFullscreen, toggleFullscreen]);
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFullscreen = !!document.fullscreenElement;
+      dispatch({ type: 'SET_FULLSCREEN', payload: isFullscreen });
+    };
 
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [dispatch]);
 
 
   // Handle video navigation
@@ -252,14 +248,6 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
         event.target.setPlaybackRate(state.playbackSpeed);
       }
       
-      if (state.currentTime > 0) {
-        setTimeout(() => {
-          if (playerRef.current && typeof playerRef.current.seekTo === 'function') {
-            playerRef.current.seekTo(state.currentTime);
-          }
-        }, 100);
-      }
-      
       if (autoplay || state.isPlaying) {
         event.target.playVideo();
       }
@@ -275,8 +263,11 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
   const onPlayerStateChange: YouTubeProps['onStateChange'] = (event) => {
     const playerState = event.data;
     
-    dispatch({ type: 'SET_PLAYING', payload: playerState === 1 });
+    // Update playing state
+    const isPlaying = playerState === 1;
+    dispatch({ type: 'SET_PLAYING', payload: isPlaying });
     
+    // Handle video end
     if (playerState === 0) {
       if (onVideoChange && currentIndex < videos.length - 1) {
         onVideoChange(currentIndex + 1);
@@ -295,6 +286,7 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
       onError(event.data);
     }
     
+    // Try to skip to next video
     if (onVideoChange && currentIndex < videos.length - 1) {
       onVideoChange(currentIndex + 1);
     } else {
@@ -316,17 +308,10 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
       iv_load_policy: 3,
       playsinline: 1,
       enablejsapi: 1,
-      origin: window.location.origin,
-      widget_referrer: window.location.origin,
+      origin: typeof window !== 'undefined' ? window.location.origin : '',
       html5: 1,
-      vq: 'medium',
-      cc_load_policy: 0,
       color: 'red',
       theme: 'dark',
-      start: 0,
-      end: 0,
-      loop: 0,
-      playlist: '',
     },
   };
 
@@ -350,29 +335,31 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
       </div>
 
 
-      {/* Custom Controls Overlay */}
+      {/* Custom Controls Overlay - Enhanced with modern backdrop effects */}
       {controls && (
         <div
-          className={`absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 transition-opacity duration-300 ${
+          className={`absolute inset-0 transition-all duration-500 ease-in-out ${
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
           onMouseEnter={() => setIsHoveringControls(true)}
           onMouseLeave={() => setIsHoveringControls(false)}
         >
-          {/* Top Bar */}
-          <div className="absolute top-0 left-0 right-0 p-4">
+          {/* Enhanced gradient overlays with better contrast */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 backdrop-blur-[1px]" />
+          {/* Top Bar with enhanced backdrop */}
+          <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/60 to-transparent backdrop-blur-sm">
             <div className="flex items-center justify-between text-white">
               <div className="flex-1 min-w-0">
                 {playlist && (
-                  <h2 className="text-lg font-semibold truncate mb-1">{playlist.title}</h2>
+                  <h2 className="text-xl font-bold truncate mb-2 drop-shadow-lg">{playlist.title}</h2>
                 )}
                 {state.currentVideo && (
-                  <p className="text-sm text-gray-300 truncate">{state.currentVideo.title}</p>
+                  <p className="text-base text-gray-100 truncate drop-shadow-md">{state.currentVideo.title}</p>
                 )}
               </div>
-              <div className="flex items-center space-x-2 ml-4">
+              <div className="flex items-center space-x-3 ml-6">
                 {videos.length > 1 && (
-                  <span className="text-sm text-gray-300">
+                  <span className="text-sm text-gray-200 font-medium bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">
                     {currentIndex + 1} / {videos.length}
                   </span>
                 )}
@@ -380,11 +367,11 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
             </div>
           </div>
 
-          {/* Center Play/Pause Button */}
+          {/* Center Play/Pause Button - Enhanced design */}
           <div className="absolute inset-0 flex items-center justify-center">
             <button
               onClick={togglePlayPause}
-              className="p-4 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+              className="p-6 bg-black/60 hover:bg-black/80 rounded-full text-white transition-all duration-300 hover:scale-110 backdrop-blur-sm shadow-2xl border border-white/20"
               aria-label={state.isPlaying ? 'Pause' : 'Play'}
             >
               {state.isPlaying ? (
@@ -399,21 +386,23 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
             </button>
           </div>
 
-          {/* Bottom Controls */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 space-y-3">
-            <ProgressBar
-              currentTime={state.currentTime}
-              duration={state.duration}
-              onSeek={seekTo}
-              buffered={state.buffered}
-            />
+          {/* Bottom Controls - Enhanced with backdrop effects */}
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/70 to-transparent backdrop-blur-sm">
+            <div className="space-y-4">
+              <ProgressBar
+                currentTime={state.currentTime}
+                duration={state.duration}
+                onSeek={seekTo}
+                buffered={state.buffered}
+              />
 
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
               <PlayerControls
                 isPlaying={state.isPlaying}
                 volume={state.volume}
                 isMuted={state.isMuted}
                 isFullscreen={state.isFullscreen}
+                isPictureInPicture={false}
                 playbackSpeed={state.playbackSpeed}
                 onPlayPause={togglePlayPause}
                 onPreviousVideo={handlePreviousVideo}
@@ -423,8 +412,10 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
                 onVolumeChange={setVolume}
                 onToggleMute={toggleMute}
                 onToggleFullscreen={handleToggleFullscreen}
+                onTogglePictureInPicture={undefined}
                 onSpeedChange={setPlaybackSpeed}
               />
+              </div>
             </div>
           </div>
         </div>
@@ -433,6 +424,6 @@ const EnhancedVideoPlayer = memo<EnhancedVideoPlayerProps>(({
   );
 });
 
-EnhancedVideoPlayer.displayName = 'EnhancedVideoPlayer';
+VideoPlayer.displayName = 'VideoPlayer';
 
-export default EnhancedVideoPlayer;
+export default VideoPlayer;

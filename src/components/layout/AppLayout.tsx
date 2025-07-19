@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { VideoPlayerProvider, useVideoPlayer } from '@/contexts/VideoPlayerContext';
 import LoginButton from '@/components/LoginButton';
 import ClientOnly from '@/components/ClientOnly';
-import PictureInPictureModal from '@/components/video/PictureInPictureModal';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -18,18 +17,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { state, dispatch } = useVideoPlayer();
 
-  const handleClosePictureInPicture = () => {
-    dispatch({ type: 'SET_PICTURE_IN_PICTURE', payload: false });
-    dispatch({ type: 'RESET_PLAYER' });
-  };
-
-  const handleRestorePictureInPicture = () => {
-    dispatch({ type: 'SET_PICTURE_IN_PICTURE', payload: false });
-    // Navigate to session page if not already there
-    if (!window.location.pathname.includes('/session')) {
-      window.location.href = '/session';
-    }
-  };
 
   if (loading) {
     return (
@@ -229,13 +216,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Picture-in-Picture Modal */}
-      {state.isPictureInPicture && state.currentVideo && (
-        <PictureInPictureModal
-          onClose={handleClosePictureInPicture}
-          onRestore={handleRestorePictureInPicture}
-        />
-      )}
     </div>
   );
 };
