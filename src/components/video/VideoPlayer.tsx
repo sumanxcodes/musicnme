@@ -402,7 +402,6 @@ const VideoPlayer = memo<VideoPlayerProps>(({
                 volume={state.volume}
                 isMuted={state.isMuted}
                 isFullscreen={state.isFullscreen}
-                isPictureInPicture={false}
                 playbackSpeed={state.playbackSpeed}
                 onPlayPause={togglePlayPause}
                 onPreviousVideo={handlePreviousVideo}

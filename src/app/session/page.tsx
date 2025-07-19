@@ -138,6 +138,13 @@ const SessionPlayerPage: React.FC = () => {
         // We'll call router.push directly to avoid the dependency issue
         router.push('/playlists');
       }
+      
+      // Toggle playlist sidebar with 'p' key
+      if (e.key === 'p' || e.key === 'P') {
+        if (!state.isFullscreen) {
+          setShowPlaylistSidebar(prev => !prev);
+        }
+      }
     };
 
     // Initial timer
@@ -519,22 +526,47 @@ const SessionPlayerPage: React.FC = () => {
             currentIndex={currentVideoIndex}
             onVideoSelect={handleVideoChange}
             onToggle={() => setShowPlaylistSidebar(false)}
-            className="w-full lg:w-[30%] h-full hidden lg:flex"
+            className="w-full lg:w-[30%] h-full hidden lg:flex flex-col"
           />
         )}
       </div>
 
-      {/* Mobile Playlist Toggle Button */}
+      {/* Playlist Toggle Button - Always visible when not in fullscreen */}
       {!state.isFullscreen && (
         <button
           onClick={() => setShowPlaylistSidebar(!showPlaylistSidebar)}
-          className={`fixed bottom-4 right-4 z-50 lg:hidden w-14 h-14 bg-black/70 backdrop-blur-sm hover:bg-black/90 text-white rounded-full transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg ${
-            showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+          className={`fixed bottom-4 right-4 z-50 w-14 h-14 bg-black/70 backdrop-blur-sm hover:bg-black/90 text-white rounded-full transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg ${
+            showPlaylistSidebar ? 'bg-blue-600/80 hover:bg-blue-700/90' : ''
           }`}
-          aria-label="Toggle playlist"
+          aria-label={showPlaylistSidebar ? 'Hide playlist' : 'Show playlist'}
+          title={showPlaylistSidebar ? 'Hide playlist (Press P)' : 'Show playlist (Press P)'}
         >
           <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            {showPlaylistSidebar ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            )}
+          </svg>
+        </button>
+      )}
+
+      {/* Desktop Playlist Toggle Button - Positioned differently to avoid conflict */}
+      {!state.isFullscreen && (
+        <button
+          onClick={() => setShowPlaylistSidebar(!showPlaylistSidebar)}
+          className={`fixed top-1/2 right-4 z-50 hidden lg:flex w-12 h-12 bg-black/70 backdrop-blur-sm hover:bg-black/90 text-white rounded-full transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg items-center justify-center ${
+            showPlaylistSidebar ? 'bg-blue-600/80 hover:bg-blue-700/90' : ''
+          }`}
+          aria-label={showPlaylistSidebar ? 'Hide playlist' : 'Show playlist'}
+          title={showPlaylistSidebar ? 'Hide playlist (Press P)' : 'Show playlist (Press P)'}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {showPlaylistSidebar ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            )}
           </svg>
         </button>
       )}
